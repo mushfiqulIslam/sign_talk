@@ -1,0 +1,5 @@
+# Python 3.10 or newer. Install with:
+#   Windows:      py -m venv .venv  then  .venv\Scripts\pip install -r requirements.txt
+#   Mac / Linux:  python3 -m venv .venv  then  .venv/bin/pip install -r requirements.txt
+numpy>=2.0        # finger maths and the sign recogniser
+lz4>=4.0          # only needed if Rokoko Studio sends compressed packets
