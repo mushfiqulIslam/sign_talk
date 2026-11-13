@@ -6,11 +6,16 @@ Smart glasses for deaf and hard-of-hearing people. The wearer keeps looking at t
 2. **Announcements that matter**: only station announcements about the wearer's own trip.
 3. **Danger alerts**: a clear warning for alarms, sirens and car horns.
 
-The diagrams below are drawn in Mermaid, so GitHub renders them directly.
+Each diagram is shown as an image (works in Android Studio and on GitHub). The editable source is in `docs/images/*.svg`; a Mermaid version follows each image for GitHub.
 
 ## Version 1: listen and show
 
 The first version does one thing: someone speaks near the phone and the words appear in the glasses lens. Everything runs inside the Android app.
+
+![Version 1: phone microphone, speech to text, lens renderer, lens display](images/architecture-v1.png)
+
+<details>
+<summary>Mermaid source</summary>
 
 ```mermaid
 flowchart LR
@@ -25,6 +30,8 @@ flowchart LR
   mic --> stt --> render --> lens
 ```
 
+</details>
+
 - **Microphone:** the phone's own microphone until we have the glasses again. Later the glasses' microphone replaces it.
 - **Speech to text:** Android's built-in speech recognition turns speech into text as the person talks.
 - **Lens renderer:** Meta's Device Access Toolkit display module (`mwdat-display`) draws the latest lines of text in the lens.
@@ -33,6 +40,11 @@ flowchart LR
 Done means: you speak near the phone and the words appear in the mock lens within about a second.
 
 ## Full system
+
+![Full system: glasses, Android app, laptop backend and Gemini](images/architecture-full.png)
+
+<details>
+<summary>Mermaid source</summary>
 
 ```mermaid
 flowchart LR
@@ -71,6 +83,8 @@ flowchart LR
   hub --> renderer --> lens
 ```
 
+</details>
+
 | Part | What it does |
 |---|---|
 | Speech listener | Turns speech from the glasses' microphone into text. Fallback: the phone's microphone. |
@@ -90,4 +104,4 @@ flowchart LR
 
 ## Out of scope
 
-Speech to sign language, full sign language interpretation and Teams integration. Signing to voice (Rokoko gloves and ElevenLabs) is a stretch goal and not part of these diagrams yet.
+Speech to sign language, full sign language interpretation and integration with meeting apps. Captions for Google Meet, Teams, Zoom and similar calls are part of the long-term goal but are not built for the hackathon. Signing to voice (Rokoko gloves and ElevenLabs) is a stretch goal and not part of these diagrams yet.
