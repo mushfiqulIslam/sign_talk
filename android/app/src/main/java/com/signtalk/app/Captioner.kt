@@ -36,13 +36,27 @@ class Captioner(private val context: Context) {
   private var recognizer: SpeechRecognizer? = null
   private val transcript = Transcript()
 
-  private val intent =
+  private val _language = MutableStateFlow(Language.ENGLISH)
+  /** Which language the recogniser listens for. It understands one at a time. */
+  val language: StateFlow<Language> = _language.asStateFlow()
+
+  private fun intent() =
       Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, _language.value.tag)
         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true) // words appear while speaking
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
       }
+
+  /** Switch language; takes effect straight away if the microphone is on. */
+  fun setLanguage(language: Language) {
+    if (language == _language.value) return
+    _language.value = language
+    if (_listening.value) {
+      recognizer?.cancel()
+      restart(0)
+    }
+  }
 
   fun start() {
     if (_listening.value) return
@@ -65,7 +79,7 @@ class Captioner(private val context: Context) {
   }
 
   private fun listen() {
-    if (_listening.value) recognizer?.startListening(intent)
+    if (_listening.value) recognizer?.startListening(intent())
   }
 
   private fun restart(delayMs: Long) {
@@ -124,4 +138,9 @@ class Captioner(private val context: Context) {
 
   private fun Bundle?.bestText(): String? =
       this?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
+}
+
+enum class Language(val tag: String, val label: String) {
+  ENGLISH("en-US", "English"),
+  FINNISH("fi-FI", "Suomi"),
 }
