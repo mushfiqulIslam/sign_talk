@@ -33,7 +33,11 @@ import com.meta.wearable.dat.core.Wearables
 import com.meta.wearable.dat.core.types.RegistrationState
 
 /** true = the real Ray-Ban Display glasses; false = Meta's mock glasses shown in Chrome. */
-private const val USE_REAL_GLASSES = false
+private const val USE_REAL_GLASSES = true
+
+/** Meta's own small test clip (266 x 150), already within the lens video limits. */
+private const val TEST_VIDEO_URL =
+    "https://raw.githubusercontent.com/facebook/meta-wearables-dat-android/refs/heads/assets/video_266x150_faststart.mp4"
 
 class MainActivity : ComponentActivity() {
 
@@ -54,7 +58,11 @@ class MainActivity : ComponentActivity() {
     setContent {
       MaterialTheme {
         Surface(Modifier.fillMaxSize()) {
-          CaptionScreen(vm, onRegister = { Wearables.startRegistration(this) })
+          CaptionScreen(
+              vm,
+              onRegister = { Wearables.startRegistration(this) },
+              onUnregister = { Wearables.startUnregistration(this) },
+          )
         }
       }
     }
@@ -63,14 +71,16 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun CaptionScreen(vm: CaptionViewModel, onRegister: () -> Unit) {
+private fun CaptionScreen(vm: CaptionViewModel, onRegister: () -> Unit, onUnregister: () -> Unit) {
   val registration by vm.registration.collectAsStateWithLifecycle()
   val glassesStatus by vm.glasses.status.collectAsStateWithLifecycle()
+  val devicesInfo by vm.glasses.devicesInfo.collectAsStateWithLifecycle()
   val previewHint by vm.glasses.previewHint.collectAsStateWithLifecycle()
   val micStatus by vm.captioner.status.collectAsStateWithLifecycle()
   val listening by vm.captioner.listening.collectAsStateWithLifecycle()
   val caption by vm.captioner.caption.collectAsStateWithLifecycle()
   val language by vm.captioner.language.collectAsStateWithLifecycle()
+  val textSize by vm.glasses.textSize.collectAsStateWithLifecycle()
 
   Column(Modifier.fillMaxSize().safeDrawingPadding().padding(20.dp)) {
     Text("Sign Talk", style = MaterialTheme.typography.headlineMedium)
@@ -79,9 +89,15 @@ private fun CaptionScreen(vm: CaptionViewModel, onRegister: () -> Unit) {
     Text(micStatus)
     if (USE_REAL_GLASSES) {
       Text("Meta AI: $registration")
+      Text(devicesInfo, fontSize = 12.sp)
       if (registration != RegistrationState.REGISTERED) {
         Spacer(Modifier.height(8.dp))
         Button(onClick = onRegister) { Text("Connect to Meta AI") }
+      } else {
+        // The approval is tied to the glasses paired at the time; after switching glasses,
+        // remove it here and tap "Connect to Meta AI" again.
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(onClick = onUnregister) { Text("Reconnect to Meta AI (new glasses)") }
       }
     }
     previewHint?.let {
@@ -104,6 +120,19 @@ private fun CaptionScreen(vm: CaptionViewModel, onRegister: () -> Unit) {
         Spacer(Modifier.width(8.dp))
       }
     }
+    Spacer(Modifier.height(8.dp))
+    Row {
+      TextSize.entries.forEach { size ->
+        if (size == textSize) {
+          Button(onClick = {}) { Text(size.label) }
+        } else {
+          OutlinedButton(onClick = { vm.glasses.setTextSize(size) }) { Text(size.label) }
+        }
+        Spacer(Modifier.width(6.dp))
+      }
+    }
+    Spacer(Modifier.height(8.dp))
+    OutlinedButton(onClick = { vm.glasses.playVideo(TEST_VIDEO_URL) }) { Text("Test video on lens") }
     Spacer(Modifier.height(24.dp))
     Text(caption.ifBlank { "Say something…" }, fontSize = 28.sp, lineHeight = 34.sp)
   }

@@ -1,0 +1,15 @@
+# Secrets: never commit API keys
+.env
+.env.*
+!.env.example
+
+# Android Studio settings
+.idea/
+
+# Python
+.venv/
+__pycache__/
+
+# Sign data and videos are CC BY-NC-SA: keep them out of this MIT repo
+finsl-data/
+*.mp4
