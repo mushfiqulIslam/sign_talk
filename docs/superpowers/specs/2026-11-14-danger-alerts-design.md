@@ -2,6 +2,8 @@
 
 Date: 2026-11-14 (Saturday). Demo freeze 20:00 today.
 
+> **Status: dropped from the demo (Saturday 14:30).** Built and tested in the simulator, then removed: on the demo phone (Samsung, Google speech service) the alert recorder and speech-to-text could not share the microphone. Piping our recording into speech-to-text (`EXTRA_AUDIO_SOURCE`) heard speech but never returned text; a separate recorder made the speech service fail with a false permission error. Captions matter more, so alerts wait for the glasses microphone (`mwdat-speech`) or a laptop listener (approach B).
+
 ## Intent
 A deaf or hard-of-hearing wearer can't hear a fire alarm, a siren or a car horn. When the phone hears one, the lens shows a clear warning straight away, whatever else is on screen. Demo: a fire-alarm sound plays from a laptop and the warning appears (`plan.md`, demo script step 3).
 

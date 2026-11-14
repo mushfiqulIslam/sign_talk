@@ -2,7 +2,7 @@
 
 Date: 2026-11-14 (Junction, Saturday). Demo freeze 20:00 today.
 
-> **Changed Saturday afternoon:** Verda wasn't reachable, so training and serving moved to **Modal**, which is also a bonus challenge ("Best use of Modal: most ambitious working AI system on Modal"). Wherever this document says Verda, read Modal. The Verda challenge is dropped. The live sign finder is a Modal web endpoint.
+> **What happened Saturday:** we briefly planned Modal (no GPU without a card), then got Verda credits. Training and the live sign API run on a Verda A100 80GB (`training/verda.sh`), reached over https through a Cloudflare quick tunnel; `training/modal_app.py` is a ready alternative. The API also joins each sentence's Signbank clips into one 352×198 video (`training/sentence_video.py`). Results: `training/README.md`.
 
 ## Intent and why
 

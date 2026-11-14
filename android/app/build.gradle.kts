@@ -7,6 +7,12 @@ plugins {
   alias(libs.plugins.compose.compiler)
 }
 
+// Sign API address and key live in sign_talk/.env, which git ignores.
+val signEnv: Map<String, String> =
+    rootDir.resolve("../.env").takeIf { it.exists() }?.readLines().orEmpty()
+        .mapNotNull { line -> line.split("=", limit = 2).takeIf { it.size == 2 }?.let { it[0].trim() to it[1].trim() } }
+        .toMap()
+
 val localProperties =
     Properties().apply {
       val file = rootDir.resolve("local.properties")
@@ -18,6 +24,8 @@ android {
   compileSdk = 36
 
   defaultConfig {
+    buildConfigField("String", "SIGN_API_URL", "\"${signEnv["SIGN_API_URL"] ?: ""}\"")
+    buildConfigField("String", "SIGN_API_KEY", "\"${signEnv["SIGN_API_KEY"] ?: ""}\"")
     applicationId = "com.signtalk.app"
     minSdk = 31
     targetSdk = 36
@@ -36,7 +44,10 @@ android {
     targetCompatibility = JavaVersion.VERSION_17
   }
 
-  buildFeatures { compose = true }
+  buildFeatures {
+    compose = true
+    buildConfig = true
+  }
   packaging { resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" } }
 }
 
@@ -52,4 +63,5 @@ dependencies {
   implementation(libs.mwdat.display)
   implementation(libs.mwdat.mockdevice)
   implementation(libs.mwdat.speech)
+
 }

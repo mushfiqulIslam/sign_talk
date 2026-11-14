@@ -33,7 +33,7 @@ import com.meta.wearable.dat.core.Wearables
 import com.meta.wearable.dat.core.types.RegistrationState
 
 /** true = the real Ray-Ban Display glasses; false = Meta's mock glasses shown in Chrome. */
-private const val USE_REAL_GLASSES = true
+private const val USE_REAL_GLASSES = false
 
 /** Meta's own small test clip (266 x 150), already within the lens video limits. */
 private const val TEST_VIDEO_URL =
@@ -81,6 +81,9 @@ private fun CaptionScreen(vm: CaptionViewModel, onRegister: () -> Unit, onUnregi
   val caption by vm.captioner.caption.collectAsStateWithLifecycle()
   val language by vm.captioner.language.collectAsStateWithLifecycle()
   val textSize by vm.glasses.textSize.collectAsStateWithLifecycle()
+  val signsOn by vm.signsOn.collectAsStateWithLifecycle()
+  val signVideosOn by vm.signVideosOn.collectAsStateWithLifecycle()
+  val signStatus by vm.signStatus.collectAsStateWithLifecycle()
 
   Column(Modifier.fillMaxSize().safeDrawingPadding().padding(20.dp)) {
     Text("Sign Talk", style = MaterialTheme.typography.headlineMedium)
@@ -133,6 +136,15 @@ private fun CaptionScreen(vm: CaptionViewModel, onRegister: () -> Unit, onUnregi
     }
     Spacer(Modifier.height(8.dp))
     OutlinedButton(onClick = { vm.glasses.playVideo(TEST_VIDEO_URL) }) { Text("Test video on lens") }
+    Spacer(Modifier.height(8.dp))
+    Row {
+      if (signsOn) Button(onClick = { vm.setSignsOn(false) }) { Text("FinSL signs: on") }
+      else OutlinedButton(onClick = { vm.setSignsOn(true) }) { Text("FinSL signs: off") }
+      Spacer(Modifier.width(6.dp))
+      if (signVideosOn) Button(onClick = { vm.setSignVideosOn(false) }) { Text("Sign videos: on") }
+      else OutlinedButton(onClick = { vm.setSignVideosOn(true) }) { Text("Sign videos: off") }
+    }
+    Text(signStatus)
     Spacer(Modifier.height(24.dp))
     Text(caption.ifBlank { "Say something…" }, fontSize = 28.sp, lineHeight = 34.sp)
   }

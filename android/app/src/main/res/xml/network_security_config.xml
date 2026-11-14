@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The sign API on the Verda GPU machine has no https certificate; allow plain http to it only. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">135.181.63.186</domain>
+    </domain-config>
+</network-security-config>

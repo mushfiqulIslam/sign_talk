@@ -17,7 +17,8 @@ object TextBitmap {
   private const val HEIGHT = 200
   private const val PADDING = 12
 
-  fun render(text: String, textSizePx: Float = 36f): Bitmap {
+  /** [header], if given, is drawn first in a smaller yellow line (used for the FinSL sign names). */
+  fun render(text: String, textSizePx: Float = 36f, header: String? = null): Bitmap {
     val paint =
         TextPaint(TextPaint.ANTI_ALIAS_FLAG).apply {
           color = Color.WHITE
@@ -25,9 +26,15 @@ object TextBitmap {
           typeface = Typeface.DEFAULT_BOLD
         }
     val width = WIDTH - 2 * PADDING
+    val headerLayout =
+        header?.let {
+          val hp = TextPaint(paint).apply { color = Color.YELLOW; textSize = textSizePx * 0.6f }
+          layoutFor(it, hp, width)
+        }
+    val headerHeight = headerLayout?.height ?: 0
     // Keep only the lines that fit, newest at the bottom, like a caption.
     var layout = layoutFor(text, paint, width)
-    val maxLines = ((HEIGHT - 2 * PADDING) / (paint.fontSpacing)).toInt().coerceAtLeast(1)
+    val maxLines = ((HEIGHT - 2 * PADDING - headerHeight) / (paint.fontSpacing)).toInt().coerceAtLeast(1)
     if (layout.lineCount > maxLines) {
       val firstKept = layout.getLineStart(layout.lineCount - maxLines)
       layout = layoutFor(text.substring(firstKept).trimStart(), paint, width)
@@ -36,6 +43,10 @@ object TextBitmap {
     Canvas(bitmap).apply {
       drawColor(Color.BLACK)
       translate(PADDING.toFloat(), PADDING.toFloat())
+      headerLayout?.let {
+        it.draw(this)
+        translate(0f, headerHeight.toFloat())
+      }
       layout.draw(this)
     }
     return bitmap

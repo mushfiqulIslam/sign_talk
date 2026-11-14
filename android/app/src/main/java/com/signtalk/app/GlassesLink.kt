@@ -53,6 +53,9 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
 
   private val display = MutableStateFlow<Display?>(null)
   private val caption = MutableStateFlow("")
+
+  /** FinSL sign names for the last sentence, shown above the caption for a few seconds. */
+  private val signsLine = MutableStateFlow<String?>(null)
   private var session: DeviceSession? = null
 
   private val _textSize = MutableStateFlow(TextSize.EXTRA_LARGE)
@@ -77,14 +80,16 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
     // Redraw the lens whenever the caption or the display changes. StateFlow drops
     // intermediate values while a send is in progress, so we always show the newest text.
     scope.launch(Dispatchers.IO + errors) {
-      combine(display, caption, _textSize, videoPlaying) { d, text, size, playing ->
-            Triple(d.takeUnless { playing }, text, size)
+      combine(display, caption, _textSize, videoPlaying, signsLine) { d, text, size, playing, signs ->
+            Frame(d, text, size, signs, playing)
           }
-          .collect { (d, text, size) ->
+          .collect { f ->
+            // while a video plays it owns the (full-screen) lens
+            val d = f.display?.takeUnless { f.playing }
             if (d != null) {
-              draw(d, text, size)
+              draw(d, f.text, f.size, f.signs)
               // keep Bluetooth traffic reasonable while words stream in; pictures are bigger
-              delay(if (size == TextSize.EXTRA_LARGE) 250 else 60)
+              delay(if (f.size == TextSize.EXTRA_LARGE) 250 else 60)
             }
           }
     }
@@ -246,13 +251,29 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
         )
   }
 
-  private suspend fun draw(d: Display, text: String, size: TextSize) = sendLock.withLock {
+  private data class Frame(
+      val display: Display?, val text: String, val size: TextSize, val signs: String?,
+      val playing: Boolean,
+  )
+
+  /** Show the sign names for a few seconds above the caption. */
+  fun showSigns(signs: List<String>) {
+    if (signs.isEmpty()) return
+    val line = "Signs: " + signs.joinToString(" ") { it.removePrefix("FS:").let { s -> if (s != it) "($s)" else s } }
+    signsLine.value = line
+    scope.launch {
+      delay(8_000)
+      if (signsLine.value == line) signsLine.value = null
+    }
+  }
+
+  private suspend fun draw(d: Display, text: String, size: TextSize, signs: String?) = sendLock.withLock {
     if (videoPlaying.value) return@withLock // a video started while we waited
     val result =
-        when (size) {
+        when {
           // Drawn as a picture: bigger than any built-in text style.
-          TextSize.EXTRA_LARGE -> {
-            val bitmap = TextBitmap.render(lastWords(text, 120).ifBlank { "Listening…" })
+          size == TextSize.EXTRA_LARGE -> {
+            val bitmap = TextBitmap.render(lastWords(text, 120).ifBlank { "Listening…" }, header = signs)
             d.sendContent {
               flexBox(direction = Direction.COLUMN) { image(bitmap = bitmap, sizePreset = ImageSize.FILL) }
             }
@@ -263,6 +284,7 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
             val shown = lastWords(text, if (large) 70 else 140).ifBlank { "Listening…" }
             d.sendContent {
               flexBox(direction = Direction.COLUMN, padding = 24) {
+                if (signs != null) text(signs, style = TextStyle.META)
                 text(shown, style = if (large) TextStyle.HEADING else TextStyle.BODY)
               }
             }
@@ -276,45 +298,59 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
    * Meta's limits: https only, MP4, at most 400 px per side and 70,000 pixels in total.
    */
   fun playVideo(url: String) {
+    scope.launch(Dispatchers.IO + errors) { playVideos(listOf(url)) }
+  }
+
+  /** Plays the clips one after another (the lens plays one video at a time), then back to captions. */
+  suspend fun playVideos(urls: List<String>) {
     val d = display.value
     if (d == null) {
       _status.value = "Glasses: lens not ready for video"
       return
     }
-    if (videoPlaying.value) return
-    scope.launch(Dispatchers.IO + errors) {
-      videoPlaying.value = true
-      val player = VideoPlayer(source = VideoSource.Url(url), codec = VideoCodec.MP4)
-      try {
-        // Waits for any caption still on its way, then shows the video player.
-        sendLock.withLock {
-          d.sendContent { video(player = player) }
-              .onFailure { e, _ -> Log.w(TAG, "Video send failed: ${e.description}") }
-        }
-        val stateLog = scope.launch { player.state.collect { Log.i(TAG, "Video state: $it") } }
-        val errorLog = scope.launch { player.error.collect { if (it != null) Log.w(TAG, "Video error: $it") } }
-        player.play()
-        _status.value = "Glasses: playing video…"
-        val started = System.currentTimeMillis()
-        val result =
-            withTimeoutOrNull(60_000) {
-              combine(player.state, player.error) { state, error -> state to error }
-                  .first { (state, error) -> error != null || state == VideoPlayerState.ENDED }
-            }
-        val seconds = (System.currentTimeMillis() - started) / 1000.0
-        Log.i(TAG, "Video done after ${seconds}s: $result")
-        _status.value =
-            when {
-              result == null -> "Glasses: video timed out"
-              result.second != null -> "Glasses: video error ${result.second}"
-              else -> "Glasses: video played (${"%.1f".format(seconds)} s)"
-            }
-        stateLog.cancel()
-        errorLog.cancel()
-      } finally {
-        player.close()
-        videoPlaying.value = false // captions come back
+    if (urls.isEmpty() || videoPlaying.value) return
+    videoPlaying.value = true
+    try {
+      for ((i, url) in urls.withIndex()) {
+        if (!playOne(d, url, "${i + 1}/${urls.size}")) break
       }
+    } finally {
+      videoPlaying.value = false // captions come back
+    }
+  }
+
+  /** One clip, full screen. Returns false if it failed, so the rest of the sentence is skipped. */
+  private suspend fun playOne(d: Display, url: String, label: String): Boolean {
+    val player = VideoPlayer(source = VideoSource.Url(url), codec = VideoCodec.MP4)
+    try {
+      // Waits for any caption still on its way, then shows the video player.
+      sendLock.withLock {
+        d.sendContent { video(player = player) }
+            .onFailure { e, _ -> Log.w(TAG, "Video send failed: ${e.description}") }
+      }
+      val stateLog = scope.launch { player.state.collect { Log.i(TAG, "Video state: $it") } }
+      val errorLog = scope.launch { player.error.collect { if (it != null) Log.w(TAG, "Video error: $it") } }
+      player.play()
+      _status.value = "Glasses: playing video $label…"
+      val started = System.currentTimeMillis()
+      val result =
+          withTimeoutOrNull(20_000) {
+            combine(player.state, player.error) { state, error -> state to error }
+                .first { (state, error) -> error != null || state == VideoPlayerState.ENDED }
+          }
+      val seconds = (System.currentTimeMillis() - started) / 1000.0
+      Log.i(TAG, "Video $label done after ${seconds}s: $result ($url)")
+      stateLog.cancel()
+      errorLog.cancel()
+      _status.value =
+          when {
+            result == null -> "Glasses: video $label timed out"
+            result.second != null -> "Glasses: video $label error ${result.second}"
+            else -> "Glasses: video $label played (${"%.1f".format(seconds)} s)"
+          }
+      return result != null && result.second == null
+    } finally {
+      player.close()
     }
   }
 

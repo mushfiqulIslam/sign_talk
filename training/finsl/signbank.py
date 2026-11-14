@@ -50,3 +50,18 @@ def make_bank(entries: list[Entry]) -> dict[str, dict]:
     for v in list(bank.values()):
         bank.setdefault(v["base"], v)
     return bank
+
+
+def check_signs(signs: list[str], bank: dict) -> dict:
+    """Keep only signs Signbank has (spec anti-goal: never show an invented sign), with their video links."""
+    kept, videos, dropped = [], [], []
+    for s in signs:
+        if s.startswith("FS:"):
+            kept.append(s)
+            videos.append(None)
+        elif known(s, bank):
+            kept.append(s)
+            videos.append((bank.get(s) or bank[base_name(s)])["video"])
+        else:
+            dropped.append(s)
+    return {"signs": kept, "videos": videos, "dropped": dropped}

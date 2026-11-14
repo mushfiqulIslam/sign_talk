@@ -9,7 +9,10 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
@@ -26,6 +29,10 @@ class Captioner(private val context: Context) {
   /** The last few finished sentences plus whatever is being said right now. */
   val caption: StateFlow<String> = _caption.asStateFlow()
 
+  private val _sentences = MutableSharedFlow<Pair<String, Language>>(extraBufferCapacity = 8)
+  /** Each finished sentence with its language (not the partial words), e.g. for the sign finder. */
+  val sentences: SharedFlow<Pair<String, Language>> = _sentences.asSharedFlow()
+
   private val _status = MutableStateFlow("Mic: off")
   val status: StateFlow<String> = _status.asStateFlow()
 
@@ -33,6 +40,7 @@ class Captioner(private val context: Context) {
   val listening: StateFlow<Boolean> = _listening.asStateFlow()
 
   private val handler = Handler(Looper.getMainLooper())
+  private var permissionErrors = 0
   private var recognizer: SpeechRecognizer? = null
   private val transcript = Transcript()
 
@@ -90,6 +98,7 @@ class Captioner(private val context: Context) {
   private val listener =
       object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {
+          permissionErrors = 0
           _status.value = "Mic: listening"
         }
 
@@ -99,7 +108,9 @@ class Captioner(private val context: Context) {
         }
 
         override fun onResults(results: Bundle?) {
-          _caption.value = transcript.final(results.bestText().orEmpty())
+          val sentence = results.bestText().orEmpty()
+          _caption.value = transcript.final(sentence)
+          if (sentence.isNotBlank()) _sentences.tryEmit(sentence to _language.value)
           restart(0)
         }
 
@@ -114,9 +125,17 @@ class Captioner(private val context: Context) {
               recognizer?.cancel()
               restart(300)
             }
+            // Google's service sometimes reports this once and then works on the next try;
+            // give up only if it keeps happening.
             SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> {
-              stop()
-              _status.value = "Mic: permission denied"
+              permissionErrors++
+              if (permissionErrors > 5) {
+                stop()
+                _status.value = "Mic: permission denied"
+              } else {
+                recognizer?.cancel()
+                restart(500)
+              }
             }
             else -> {
               _status.value = "Mic: error $error, retrying"

@@ -12,8 +12,12 @@ def load(path: Path) -> list[dict]:
     return [json.loads(l) for l in path.open(encoding="utf-8")]
 
 
-def rows_for(split: str, data: Path) -> list[dict]:
-    return load(data / "dataset" / f"{split}.jsonl") + [r for r in load(STATION) if r["split"] == split]
+def rows_for(split: str, data: Path, generated: bool = True) -> list[dict]:
+    """Corpus rows + hand-written station rows, plus template station rows for training."""
+    from finsl.station_gen import generate
+
+    extra = generate() if split == "train" and generated else []
+    return load(data / "dataset" / f"{split}.jsonl") + [r for r in load(STATION) if r["split"] == split] + extra
 
 
 def eval_sample(data: Path) -> list[dict]:

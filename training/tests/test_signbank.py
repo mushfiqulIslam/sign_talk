@@ -49,3 +49,13 @@ def test_bank_keys_match_cleaned_corpus_names():
     assert known("NELJÄ", bank) and bank["NELJÄ"]["video"] == "https://x/4.mp4"
     assert known("PIENI", bank)
     assert "KÄSI-YLÖS_ele" not in bank  # gestures are not signs
+
+
+def test_check_signs_keeps_known_drops_unknown():
+    from finsl.signbank import check_signs
+    bank = {"HELSINKI": {"video": "https://x/h.mp4", "base": "HELSINKI"},
+            "PIENI": {"video": "https://x/p.mp4", "base": "PIENI"}}
+    out = check_signs(["HELSINKI", "KEKSITTY", "PIENI(L_alas)", "FS:espoo"], bank)
+    assert out["signs"] == ["HELSINKI", "PIENI(L_alas)", "FS:espoo"]
+    assert out["videos"] == ["https://x/h.mp4", "https://x/p.mp4", None]  # fingerspelling: no clip, show text
+    assert out["dropped"] == ["KEKSITTY"]

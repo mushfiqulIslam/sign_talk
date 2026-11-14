@@ -6,6 +6,7 @@
 #   ./verda.sh predict root@IP     fine-tuned + untrained predictions, copied back to ../../finsl-data/predictions
 #   ./verda.sh fetch   root@IP     copy the trained adapter back to ../../finsl-data/models
 #   FINSL_MODEL=google/gemma-4-E4B-it OUT=finsl-gemma4-e4b ./verda.sh train root@IP   # the bigger model
+#   ./verda.sh serve   root@IP     start the live sign API on port 8000 (key: SIGN_API_KEY in sign_talk/.env)
 #   ./verda.sh wipe    root@IP     delete the corpus data from the machine (licence +PRIV) before deleting the instance
 set -euo pipefail
 cmd=$1; host=$2
@@ -25,6 +26,13 @@ case $cmd in
     run "$py predict --data ~/finsl-data --adapter ~/$out --out ~/$out-pred.jsonl && $py predict --data ~/finsl-data --out ~/$out-base-pred.jsonl"
     mkdir -p "$data/predictions"; scp "$host:$out-pred.jsonl" "$host:$out-base-pred.jsonl" "$data/predictions/" ;;
   fetch)   mkdir -p "$data/models"; rsync -az "$host:$out" "$data/models/" ;;
-  wipe)    ssh "$host" 'rm -rf ~/finsl-data ~/*-pred.jsonl' ;;
+  serve)
+    rsync -az "$here/serve.py" "$here/gpu_train.py" "$here/sentence_video.py" "$here/finsl" "$host:training/"
+    rsync -az "$data/signbank.json" "$host:finsl-data/"
+    grep '^SIGN_API_KEY=' "$here/../.env" | ssh "$host" 'umask 077; cat > ~/sign-api.env'
+    run 'export PATH=$HOME/.local/bin:$PATH; uv pip install -q fastapi uvicorn && (tmux kill-session -t api 2>/dev/null || true) &&
+         tmux new -d -s api "set -a; . ~/sign-api.env; set +a; FINSL_ADAPTER=~/'"$out"' FINSL_BANK=~/finsl-data/signbank.json FINSL_MODEL='"$model"' .venv/bin/uvicorn serve:app --host 0.0.0.0 --port 8000 2>&1 | tee ~/api.log"'
+    echo "starting; log: ssh $host tail -f api.log" ;;
+  wipe)    ssh "$host" 'tmux kill-session -t api 2>/dev/null; rm -rf ~/finsl-data ~/*-pred.jsonl ~/sign-api.env' ;;
   *) echo "unknown command $cmd"; exit 1 ;;
 esac
