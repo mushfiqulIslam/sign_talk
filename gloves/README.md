@@ -6,15 +6,22 @@ One command on the laptop recognises signs, turns them into a Finnish/English se
 plain words without a key) and sends it to the Sign Talk app, which shows it and speaks it out loud.
 The laptop and the phone must be on the **same Wi-Fi** (or the laptop on the phone's hotspot).
 
+### The trained model is included
+`gloves/gloves-model.joblib` (2.8 MB) is trained on the 10 signs the Sign Talk team recorded
+(me, name, address, study, university, Aalto, nice, meet, good, day; one signer), shared under
+the repo's MIT licence. It also holds held-out stretches of those recordings for the replay demo.
+The raw CSV recordings are not in the repo. `start.bat` / `start.sh` and `signtalk-gloves run` use
+this model automatically: **no training needed**. Run `train` only for new recordings.
+
 ### Easiest: the shared package (plug and play)
 `signtalk-gloves bundle` writes `~/Downloads/SignTalk-Gloves.zip` (backend + trained model + start
-scripts, no API keys). Share it **privately**: the model holds glove recordings. The recipient unzips it and:
+scripts, no API keys), for people who don't use Git. The recipient unzips it and:
 - Windows: double-click **`start.bat`** · Mac / Linux: **`./start.sh`**
 - first start sets itself up (installs `uv`, which fetches Python if needed; about a minute)
 - a page with a **QR code** opens: on the phone, **Sign Talk -> Gloves -> Scan QR on the laptop**
 - `QUICKSTART.txt` in the zip says the same in five steps.
 Without a Gemini key the demo phrases still come out as natural sentences (a small phrase book).
-`start.bat` / `start.sh` also work in this folder of the repo, using the model `train` saved.
+`start.bat` / `start.sh` also work straight from this folder of the repo, with the included model.
 
 ### Install on Windows (once)
 1. Install **Python 3.10+** from python.org: in the installer tick **"Add python.exe to PATH"**.
@@ -26,13 +33,9 @@ Without a Gemini key the demo phrases still come out as natural sentences (a sma
    py -m venv gloves\.venv
    gloves\.venv\Scripts\pip install -e gloves
    ```
-3. Put the **glove CSVs** (one file per sign, e.g. `me.csv`) in a folder such as `C:\gestures`.
-   They are not in the repo.
-4. Train once:
-   ```bat
-   gloves\.venv\Scripts\signtalk-gloves train --data C:\gestures
-   ```
-5. Run it, always from the `sign_talk` folder:
+3. (Only with new recordings) train your own model:
+   `gloves\.venv\Scripts\signtalk-gloves train --data C:\gestures` (one CSV per sign).
+4. Run it, always from the `sign_talk` folder:
    ```bat
    gloves\.venv\Scripts\signtalk-gloves run --name "Anna's laptop"
    ```
@@ -46,7 +49,6 @@ Without a Gemini key the demo phrases still come out as natural sentences (a sma
 ```
 git clone https://github.com/mushfiqulIslam/sign_talk.git && cd sign_talk
 python3 -m venv gloves/.venv && gloves/.venv/bin/pip install -e gloves
-gloves/.venv/bin/signtalk-gloves train --data ~/gestures
 gloves/.venv/bin/signtalk-gloves run --name "My laptop"
 ```
 
@@ -79,8 +81,9 @@ hands stop signing. There is no "hands resting" recording yet: one would make li
 
 ### Good to know
 - Anyone on the same Wi-Fi can connect to port 8765 and read the sentences: use a trusted network.
-- The CSV recordings and the trained model (`~/.signtalk/gloves-model.joblib`,
-  `%USERPROFILE%\.signtalk\` on Windows) are not in the repo.
+- The model shipped in the repo is used unless you train your own (`train` saves to
+  `~/.signtalk/gloves-model.joblib`, `%USERPROFILE%\.signtalk\` on Windows; delete the shipped
+  file to use yours). The raw CSV recordings are not in the repo.
 - Tests: `pip install -e "gloves[dev]"` into the same venv, then `pytest gloves`.
 
 The live (`--source studio`) recogniser uses the recordings made with `record.py` below, in Studio's

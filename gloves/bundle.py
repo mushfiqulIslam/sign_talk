@@ -1,5 +1,4 @@
-"""signtalk-gloves bundle: one zip to share privately (backend + trained model + start scripts).
-It contains glove recordings (inside the model, for the replay demo) and no API keys."""
+"""signtalk-gloves bundle: one zip to share (backend + trained model + start scripts), no API keys."""
 import shutil
 import tempfile
 import zipfile
@@ -32,6 +31,6 @@ def make(model_path: Path, out: Path) -> Path:
                     info.external_attr = 0o100755 << 16  # stays runnable after unzipping
                 with open(f, "rb") as fh:
                     z.writestr(info, fh.read(), zipfile.ZIP_DEFLATED)
-    print(f"Wrote {out} ({out.stat().st_size / 1e6:.1f} MB). Share it privately: it holds glove recordings.")
+    print(f"Wrote {out} ({out.stat().st_size / 1e6:.1f} MB). No API keys inside.")
     print("The recipient unzips it and follows QUICKSTART.txt (Windows: double-click start.bat).")
     return out

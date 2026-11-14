@@ -21,4 +21,4 @@ The wearer keeps looking at the people around them while the Meta Ray-Ban Displa
 
 ## Data and licences
 
-The code is MIT. The FinSL corpus, the Signbank videos (CC BY-NC-SA), the trained models and the glove recordings are not in this repository; see `training/README.md`.
+The code is MIT. The glove sign model (`gloves/gloves-model.joblib`) is trained on the team's own recordings and shared under MIT; the raw recordings are not included. The FinSL corpus, the Signbank videos (CC BY-NC-SA) and the fine-tuned FinSL model are not in this repository; see `training/README.md`.

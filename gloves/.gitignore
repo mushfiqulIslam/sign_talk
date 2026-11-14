@@ -5,3 +5,4 @@ first_packet.json
 .pytest_cache/
 build/
 sign_dataset/
+*.csv
