@@ -2,6 +2,23 @@
 
 Smart glasses for deaf and hard-of-hearing people, built at Junction 2026 for Meta's "AI Glasses for Everyone, Everyday" challenge.
 
-The wearer keeps looking at the people around them while the Meta Ray-Ban Display shows captions of what is being said, only the station announcements that concern their own trip, and clear warnings for alarms, sirens and car horns.
+The wearer keeps looking at the people around them while the Meta Ray-Ban Display shows what is being said, and the hearing person hears what the wearer signs.
 
-See [docs/architecture.md](docs/architecture.md) for how it works.
+## What works
+
+- **Captions on the lens:** speech (English or Finnish) from the phone's microphone, shown on the glasses within about a second. Text size up to Extra large.
+- **Finnish Sign Language signs:** each finished sentence goes to our fine-tuned Gemma 4 model, which returns the FinSL signs in signing order. The lens shows the sign names and plays the matching Finnish Signbank videos as one joined clip. This shows signs in signing order; it is not interpretation.
+- **Gloves to speech:** the wearer signs with Rokoko data gloves. A laptop recognises the signs, Gemini turns them into a sentence, and the phone shows it and speaks it out loud. The phone finds the laptop on the same Wi-Fi by itself.
+
+## Parts
+
+| Folder | What it is | Start here |
+|---|---|---|
+| `android/` | The Sign Talk phone app (captions, signs, glove link; real or simulated glasses) | `CLAUDE.md` for build steps |
+| `training/` | Fine-tuning Gemma 4 on the FinSL corpus, the scores, and the live sign API | [training/README.md](training/README.md) |
+| `gloves/` | Glove backend: install on Windows, Mac or Linux, train, run | [gloves/README.md](gloves/README.md) |
+| `docs/` | Architecture and design notes | [docs/architecture.md](docs/architecture.md) |
+
+## Data and licences
+
+The code is MIT. The FinSL corpus, the Signbank videos (CC BY-NC-SA), the trained models and the glove recordings are not in this repository; see `training/README.md`.
