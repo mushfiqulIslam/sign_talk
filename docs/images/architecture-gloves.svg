@@ -20,7 +20,7 @@
   <rect width="930" height="280" fill="#FFFFFF"/>
 
   <rect class="ct" x="20" y="20" width="140" height="190" rx="12"/>
-  <text class="cl" x="32" y="40">Deaf person</text>
+  <text class="cl" x="32" y="40">Wearer (signs)</text>
   <rect class="ct" x="175" y="20" width="550" height="190" rx="12"/>
   <text class="cl" x="187" y="40">Laptop</text>
   <rect class="ct" x="740" y="20" width="170" height="190" rx="12"/>

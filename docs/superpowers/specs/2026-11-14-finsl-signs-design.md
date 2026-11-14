@@ -6,7 +6,7 @@ Date: 2026-11-14 (Junction, Saturday). Demo freeze 20:00 today.
 
 ## Intent and why
 
-A Finnish deaf or hard-of-hearing wearer sees **Finnish Sign Language (FinSL) signs** on the glasses lens for what people around them say, in **Finnish or English**. The captions stay too. The signs are extra help for people whose first language is FinSL, not a replacement for the text.
+A Finnish wearer with hearing loss sees **Finnish Sign Language (FinSL) signs** on the glasses lens for what people around them say, in **Finnish or English**. The captions stay too. The signs are extra help for people whose first language is FinSL, not a replacement for the text.
 
 The team also wants to enter two bonus challenges with this work:
 - **Best Use of Verda:** "use Verda for something a laptop can't do; document the process and post a summary in their Discord channel". Here that is fine-tuning a model on Verda GPUs.

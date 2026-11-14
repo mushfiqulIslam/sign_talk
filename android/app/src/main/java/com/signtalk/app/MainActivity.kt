@@ -507,7 +507,7 @@ private fun Intro(onDone: () -> Unit) {
         }
       }
       Spacer(Modifier.height(10.dp))
-      Text("for deaf and hard-of-hearing people", color = Muted.copy(alpha = steps[2].value), fontSize = 14.sp)
+      Text("so everyone can join the conversation", color = Muted.copy(alpha = steps[2].value), fontSize = 14.sp)
     }
   }
 }

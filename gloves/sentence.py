@@ -23,7 +23,7 @@ PHRASES = {
     ("Aalto", "university"): ("Aalto-yliopisto.", "Aalto University."),
 }
 MODEL = "gemini-flash-latest"
-PROMPT = """A deaf person signed these Finnish Sign Language signs, in this order: {signs}
+PROMPT = """A person signed these Finnish Sign Language signs, in this order: {signs}
 (word meanings: {glosses}).
 Write what they most likely meant as one short, natural spoken sentence, in Finnish and in English.
 Keep the meaning; add only the small words a sentence needs. Answer only JSON: {{"fi": "...", "en": "..."}}"""

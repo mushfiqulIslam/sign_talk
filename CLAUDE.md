@@ -1,6 +1,6 @@
 # sign_talk: notes for Claude Code
 
-Junction 2026 hackathon project (Espoo, 13–15 Nov 2026). Smart glasses for deaf and hard-of-hearing people on the Meta Ray-Ban Display: captions, only the station announcements about the wearer's own trip (Gemini filter), and visual warnings for alarms, sirens and horns (YAMNet).
+Junction 2026 hackathon project (Espoo, 13–15 Nov 2026). Smart glasses for people with hearing loss on the Meta Ray-Ban Display: captions, only the station announcements about the wearer's own trip (Gemini filter), and visual warnings for alarms, sirens and horns (YAMNet).
 
 ## Deadlines
 - Full demo working end to end: Saturday 14 Nov, 20:00. No new features after that.

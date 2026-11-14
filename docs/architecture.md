@@ -1,12 +1,12 @@
 # Architecture
 
-Two-way communication between deaf and hearing people. Communication always goes both ways, so the system has two halves:
+Two-way communication between the wearer, who has hearing loss, and the people around them. Communication always goes both ways, so the system has two halves:
 
-- **Hearing person → deaf person (glasses):** the wearer keeps looking at the people around them while the glasses show:
+- **Hearing person → wearer (glasses):** the wearer keeps looking at the people around them while the glasses show:
     1. **Captions** of what is being said.
     2. **Announcements that matter**: only station announcements about the wearer's own trip.
     3. **Danger alerts**: a clear warning for alarms, sirens and car horns.
-- **Deaf person → hearing person (gloves):** the deaf person signs, and the hearing person reads or hears it in Finnish or English.
+- **Wearer → hearing person (gloves):** the wearer signs, and the hearing person reads or hears it in Finnish or English.
 
 Each diagram is shown as an image (works in Android Studio and on GitHub). The editable source is in `docs/images/*.svg`; a Mermaid version follows each image for GitHub.
 
@@ -59,7 +59,7 @@ Done means: you speak and the words appear in the mock lens within about a secon
 
 ## Version 2: sign clips (after version 1 works)
 
-Some deaf people find sign language easier than reading. For a small set of important messages the lens plays a short sign language clip instead of the caption text. Grey parts come from version 1; purple parts are new.
+Many sign language users find signing easier to follow than reading. For a small set of important messages the lens plays a short sign language clip instead of the caption text. Grey parts come from version 1; purple parts are new.
 
 ![Version 2: speech to text, clip matcher, lens renderer plays a sign clip or shows text](images/architecture-v2.png)
 
@@ -163,7 +163,7 @@ flowchart LR
 
 **What we do once, before the demo (blue):**
 
-- **FinSL corpus:** real recordings of 21+ deaf signers retelling cartoons and picture books, from the University of Jyväskylä. Each sentence comes with its signs written down in order and a Finnish translation: about 5,000 examples. Downloaded to `../finsl-data/` (outside this repo; see `LINKS.md` there).
+- **FinSL corpus:** real recordings of 21+ native signers retelling cartoons and picture books, from the University of Jyväskylä. Each sentence comes with its signs written down in order and a Finnish translation: about 5,000 examples. Downloaded to `../finsl-data/` (outside this repo; see `LINKS.md` there).
 - **Data prep:** remove notes like "pointing" or "unclear", have Gemini translate each Finnish sentence to English (same signs), and add a few dozen station-announcement examples written by us, since the recordings are stories, not stations.
 - **Fine-tuning:** teach a small Gemma model on a rented Verda GPU, from sentence to signs. A laptop cannot do this in the time we have.
 - **Evaluation:** test on signers the model never saw, comparing our trained model with an untrained one, so we can show a real number in the pitch.
@@ -177,7 +177,7 @@ flowchart LR
 
 ## Gloves: signs to text and voice
 
-The other half of the conversation. The glasses help the deaf person understand others; the gloves let the deaf person answer: they sign, and a hearing person who does not know sign language reads or hears it, in Finnish and English.
+The other half of the conversation. The glasses help the wearer understand others; the gloves let the wearer answer: they sign, and a hearing person who does not know sign language reads or hears it, in Finnish and English.
 
 ![Gloves: Rokoko gloves, Rokoko Studio, stream reader, recogniser, sentence maker, then text on screen and voice](images/architecture-gloves.png)
 
@@ -186,7 +186,7 @@ The other half of the conversation. The glasses help the deaf person understand 
 
 ```mermaid
 flowchart LR
-  subgraph Deaf["Deaf person"]
+  subgraph Signer["Wearer (signs)"]
     gloves["Rokoko gloves<br/><small>makes a sign</small>"]
   end
   subgraph Laptop["Laptop"]

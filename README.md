@@ -1,6 +1,6 @@
 # sign_talk
 
-Smart glasses for deaf and hard-of-hearing people, built at Junction 2026 for Meta's "AI Glasses for Everyone, Everyday" challenge.
+Smart glasses for people with hearing loss, built at Junction 2026 for Meta's "AI Glasses for Everyone, Everyday" challenge.
 
 The wearer keeps looking at the people around them while the Meta Ray-Ban Display shows what is being said, and the hearing person hears what the wearer signs.
 
