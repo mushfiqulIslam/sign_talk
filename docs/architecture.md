@@ -151,6 +151,59 @@ flowchart LR
 | Message hub | Sends captions, announcement cards and alerts to the app as they happen. |
 | Lens renderer | Draws them in the lens: alerts at the top, announcement cards in the middle, captions at the bottom. |
 
+## Gloves: signs to text and voice (separate plan)
+
+The glasses help the deaf person understand others. The gloves work the other way round: the deaf person signs, and a hearing person who does not know sign language reads or hears it, in Finnish and English. A separate team member works on this; it is not connected to the glasses app.
+
+![Gloves: Rokoko gloves, Rokoko Studio, stream reader, recogniser, sentence maker, then text on screen and voice](images/architecture-gloves.png)
+
+<details>
+<summary>Mermaid source</summary>
+
+```mermaid
+flowchart LR
+  subgraph Deaf["Deaf person"]
+    gloves["Rokoko gloves<br/><small>makes a sign</small>"]
+  end
+  subgraph Laptop["Laptop"]
+    studio["Rokoko Studio<br/><small>Windows or Mac</small>"]
+    reader["Stream reader<br/><small>finger angles</small>"]
+    recog["Recogniser<br/><small>closest match</small>"]
+    rec["Recordings<br/><small>~10 signs x 10-15</small>"]
+    sentence["Sentence maker<br/><small>Gemini: grammar</small>"]
+  end
+  subgraph Hearing["Hearing person"]
+    text["Text on screen<br/><small>Finnish + English</small>"]
+    voice["Voice<br/><small>laptop or ElevenLabs</small>"]
+  end
+  gloves --> studio --> reader --> recog --> sentence
+  rec --> recog
+  sentence --> text
+  sentence --> voice
+  classDef rokoko fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A
+  classDef done fill:#E1F5EE,stroke:#0F6E56,color:#085041
+  classDef next fill:#FAEEDA,stroke:#854F0B,color:#633806
+  class gloves,studio rokoko
+  class reader,recog done
+  class rec,sentence,text,voice next
+```
+
+</details>
+
+- **Rokoko gloves and Studio:** the gloves measure finger bend and hand rotation. Rokoko Studio (Windows or Apple-silicon Mac only, not Linux) streams this to our scripts on the same laptop.
+- **Stream reader and recogniser** (`gloves/`, built, not yet tried on real gloves): the recogniser compares the live hand with the recorded signs and picks the closest one, or none. No long training: adding a sign means recording it. Letters signed one after another are joined into one word, for example a fingerspelled name.
+- **Recordings** (to do): about 10 signs plus a relaxed "rest" pose, 10–15 repetitions each, made with `gloves/record.py`. The demo signs are still to be chosen with our signer; for example ME, NAME, STUDY, OTANIEMI and only the letters a name needs.
+- **Sentence maker** (to build): Finnish Sign Language has no word for "is" and no word endings, so the signs come out in base form. Holding the rest pose for about a second ends the sentence; the signs then go to Gemini with a short instruction and a few examples, and it writes the sentence in Finnish and English. No training needed. Examples:
+  - ME + NAME + E-L-I-N-A → "Minun nimeni on Elina." / "My name is Elina."
+  - ME + STUDY + OTANIEMI → "Minä opiskelen Otaniemessä." / "I study in Otaniemi."
+- **Text on screen and voice** (to build): the raw signs and the sentence shown large on the laptop, so people can see if the AI guessed wrong, and the sentence spoken aloud (laptop's own voice first, ElevenLabs if there is time). Fixed answers for the demo sentences are the backup if the internet fails.
+
+Limits:
+- **Where the hand is:** the gloves measure finger bend and hand rotation, not where the hand is relative to the body. A sign like STUDY, which moves from the waist to the head, may still be told apart by how the hand turns. Test it early, and ask Rokoko whether the gloves can report hand position.
+- **Sign length:** recordings are currently about half a second (30 frames). Long movements need about 1–1.5 seconds, so `record.py` and `recognise.py` must use a longer window.
+
+Decision point: if the gloves are not streaming by Saturday 14:00, drop them from the demo and mention them in the pitch as future work.
+
 ## Privacy and safety
 
 - Audio is processed as it arrives and is never stored.
@@ -162,4 +215,4 @@ flowchart LR
 - **Live translation of any speech into sign language.** Sign languages have their own grammar, facial expressions and movement, so this cannot be done word by word, and no reliable system exists yet. Version 2 covers only a small set of important messages with 5–10 pre-recorded sign clips.
 - **Full sign language interpretation.**
 - **Meeting apps.** Captions for Google Meet, Teams, Zoom and similar calls are part of the long-term goal but are not built for the hackathon.
-- **Signing to voice** (Rokoko gloves and ElevenLabs) is a separate plan and not part of these diagrams.
+- **Connecting the gloves to the glasses.** The gloves run as a separate demo on the laptop (see above).
