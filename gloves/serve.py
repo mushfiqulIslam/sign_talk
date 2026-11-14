@@ -2,9 +2,12 @@
 
   signtalk-gloves train --data ~/Downloads/gestures       train the CSV model (once)
   signtalk-gloves run                                      replay recorded signs (demo-safe)
+  signtalk-gloves run --source file --file sentence.csv    signs in a new CSV recording
+  signtalk-gloves run --source udp                         live frames (CSV columns as JSON, UDP 9100)
   signtalk-gloves run --source studio                      live gloves from Rokoko Studio
+  signtalk-gloves eval | detect sentence.csv               check the model
 
-Then in the phone app: Gloves > laptop address > Connect.
+The phone app finds this laptop on the same Wi-Fi by itself (or type its address in the Gloves card).
 """
 import argparse
 import collections
@@ -15,7 +18,9 @@ from pathlib import Path
 
 import decoder as dec
 import sentence
-from phone_link import PhoneLink, laptop_addresses
+import socket
+
+from phone_link import Beacon, PhoneLink, laptop_addresses
 
 DEFAULT_MODEL = Path.home() / ".signtalk" / "gloves-model.joblib"
 # Each tap of "Play glove demo" on the phone plays the next phrase.
@@ -28,7 +33,7 @@ class Pipeline:
 
     def __init__(self, link: PhoneLink, use_model: bool = True):
         self.link, self.use_model = link, use_model
-        self.decoder = dec.Decoder(need=3, min_prob=0.6, gap_s=2.0)
+        self.decoder = dec.Decoder()
 
     def guess(self, label: str | None, prob: float, t: float) -> None:
         self._handle(self.decoder.push(label or dec.REST, prob, t))
@@ -55,6 +60,101 @@ class Pipeline:
         ms = int((time.time() - started) * 1000)
         print(f"=== {' '.join(x.upper() for x in signs)}\n    fi: {s['fi']}\n    en: {s['en']}   ({s['by']}, {ms} ms)")
         self.link.send({"type": "sentence", "signs": signs, "fi": s["fi"], "en": s["en"], "by": s["by"], "ms": ms})
+
+
+class FrameFeed:
+    """Glove frames in (60 a second) -> a guess every 0.25 s -> the pipeline."""
+
+    def __init__(self, model: dict, pipe: Pipeline):
+        import csv_signs
+
+        self.csv_signs, self.model, self.pipe = csv_signs, model, pipe
+        self.window = collections.deque(maxlen=csv_signs.WINDOW)
+        self.n = 0
+
+    def push(self, frame) -> None:
+        self.window.append(frame)
+        self.n += 1
+        if len(self.window) == self.csv_signs.WINDOW and self.n % self.csv_signs.STEP == 0:
+            label, prob = self.csv_signs.predict(self.model, list(self.window))
+            self.pipe.guess(label, prob, time.time())
+        else:
+            self.pipe.tick(time.time())
+
+    def finish(self) -> None:
+        """Hands rest: let the sentence close."""
+        end = time.time()
+        while time.time() - end < self.pipe.decoder.gap_s + 0.3:
+            self.pipe.tick(time.time())
+            time.sleep(0.1)
+        self.pipe.flush()
+        self.window.clear()
+
+
+def play_realtime(feed: "FrameFeed", frames) -> None:
+    t0 = time.time()
+    for k, frame in enumerate(frames):
+        feed.push(frame)
+        time.sleep(max(0.0, t0 + k / 60 - time.time()))
+    feed.finish()
+
+
+def run_file(args, link: PhoneLink, pipe: Pipeline) -> None:
+    import csv_signs
+
+    model = csv_signs.load(args.model)
+    frames = csv_signs.read_recording(args.file, model["columns"])
+    print(f"{args.file}: {len(frames) / 60:.1f} s of glove data. Press Enter or 'Play glove demo' on the phone to play it.")
+    requested = threading.Event()
+    link.on_command = lambda m: requested.set() if m.get("type") == "replay" else None
+    threading.Thread(target=lambda: [requested.set() for _ in iter(sys.stdin.readline, "")], daemon=True).start()
+    while True:
+        requested.wait()
+        requested.clear()
+        print(f"\n--- playing {args.file}")
+        link.send({"type": "status", "text": f"Signing: {Path(args.file).name}"})
+        play_realtime(FrameFeed(model, pipe), frames)
+
+
+def run_udp(args, link: PhoneLink, pipe: Pipeline) -> None:
+    """Live frames from any glove tool: one JSON object per UDP packet (or a list of them),
+    with the same column names as the training CSVs."""
+    import json
+    import socket as so
+
+    import csv_signs
+
+    model = csv_signs.load(args.model)
+    feed = FrameFeed(model, pipe)
+    sock = so.socket(so.AF_INET, so.SOCK_DGRAM)
+    sock.bind(("0.0.0.0", args.udp_port))
+    sock.settimeout(0.25)
+    print(f"Waiting for glove frames on UDP port {args.udp_port} ({len(model['columns'])} columns, same names as the CSVs).")
+    bad, last = 0, time.time()
+    while True:
+        try:
+            data, _ = sock.recvfrom(1 << 20)
+        except so.timeout:
+            pipe.tick(time.time())
+            if time.time() - last > 5:
+                print("... no glove frames for 5 s")
+                last = time.time()
+            continue
+        last = time.time()
+        try:
+            rows = json.loads(data)
+        except json.JSONDecodeError:
+            continue
+        for row in rows if isinstance(rows, list) else [rows]:
+            v = csv_signs.row_vector(model["columns"], row) if isinstance(row, dict) else None
+            if v is None:
+                bad += 1
+                if bad in (1, 100, 1000):
+                    have = set(row) if isinstance(row, dict) else set()
+                    missing = [c for c in model["columns"] if c not in have]
+                    print(f"!! frame skipped: missing {len(missing)} column(s), e.g. {', '.join(missing[:3])}")
+                continue
+            feed.push(v)
 
 
 def run_replay(args, link: PhoneLink, pipe: Pipeline) -> None:
@@ -84,19 +184,7 @@ def run_replay(args, link: PhoneLink, pipe: Pipeline) -> None:
             rec = model["replay"][s]
             start = (n * 37 + i * 53) % max(1, len(rec) - REPLAY_FRAMES)  # a different stretch each time
             frames.extend(rec[start:start + REPLAY_FRAMES])
-        window = collections.deque(maxlen=csv_signs.WINDOW)
-        t0 = time.time()
-        for k, frame in enumerate(frames):
-            window.append(frame)
-            if len(window) == csv_signs.WINDOW and k % csv_signs.STEP == 0:
-                label, prob = csv_signs.predict(model, list(window))
-                pipe.guess(label, prob, time.time())
-            time.sleep(max(0.0, t0 + k / 60 - time.time()))  # real time, 60 frames a second
-        end = time.time()
-        while time.time() - end < pipe.decoder.gap_s + 0.3:  # the signer's hands rest
-            pipe.tick(time.time())
-            time.sleep(0.1)
-        pipe.flush()
+        play_realtime(FrameFeed(model, pipe), frames)
 
 
 def run_studio(args, link: PhoneLink, pipe: Pipeline) -> None:
@@ -127,14 +215,42 @@ def main() -> None:
     t.add_argument("--data", required=True, help="folder of <sign>.csv files")
     t.add_argument("--model", type=Path, default=DEFAULT_MODEL)
     r = sub.add_parser("run", help="recognise signs and send sentences to the phone")
-    r.add_argument("--source", choices=["replay", "studio"], default="replay")
+    r.add_argument("--source", choices=["replay", "file", "udp", "studio"], default="replay",
+                   help="replay: held-out recordings; file: a new CSV recording; udp: live frames with the CSV's columns; "
+                        "studio: Rokoko Studio live stream (needs record.py recordings)")
+    r.add_argument("--file", help="CSV recording for --source file")
+    r.add_argument("--udp-port", type=int, default=9100, help="for --source udp")
     r.add_argument("--model", type=Path, default=DEFAULT_MODEL)
     r.add_argument("--demo", default=DEFAULT_DEMO, help="phrases to replay, signs by comma, phrases by /")
     r.add_argument("--port", type=int, default=8765, help="the phone connects to this port")
     r.add_argument("--studio-port", type=int, default=14043)
+    r.add_argument("--name", default=socket.gethostname(), help="name the phone shows for this laptop")
     r.add_argument("--no-gemini", action="store_true", help="plain words instead of a Gemini sentence")
+    e = sub.add_parser("eval", help="score the model on random phrases of held-out signs")
+    e.add_argument("--model", type=Path, default=DEFAULT_MODEL)
+    e.add_argument("--phrases", type=int, default=200)
+    d = sub.add_parser("detect", help="print the signs found in a CSV recording")
+    d.add_argument("file")
+    d.add_argument("--model", type=Path, default=DEFAULT_MODEL)
     args = ap.parse_args()
 
+    if args.cmd == "eval":
+        import csv_signs
+
+        r = csv_signs.phrase_test(csv_signs.load(args.model), phrases=args.phrases)
+        print(f"{r['phrases']} phrases of 2-4 signs: {r['exact']:.0%} read back exactly, {r['signs_found']:.0%} of signs found")
+        for said, got in r["examples"]:
+            print(f"  signed {' '.join(said)} -> read {' '.join(got)}")
+        return
+    if args.cmd == "detect":
+        import csv_signs
+
+        model = csv_signs.load(args.model)
+        signs = csv_signs.detect(model, csv_signs.read_recording(args.file, model["columns"]))
+        print(" ".join(s.upper() for s in signs) or "(no signs found)")
+        return
+    if getattr(args, "source", None) == "file" and not args.file:
+        ap.error("--source file needs --file <recording.csv>")
     if args.cmd == "train":
         import csv_signs
 
@@ -146,13 +262,17 @@ def main() -> None:
 
     link = PhoneLink(port=args.port)
     link.start()
-    print("Phone: Sign Talk > Gloves > enter " + " or ".join(f"{ip}" for ip in laptop_addresses()) + f"  (port {link.port})")
+    beacon = Beacon(name=args.name, port=link.port)
+    beacon.start()
+    print(f"Announcing '{args.name}' on the Wi-Fi: the app finds this laptop by itself.")
+    print("If it doesn't: Sign Talk > Gloves > enter " + " or ".join(f"{ip}" for ip in laptop_addresses()) + f"  (port {link.port})")
     pipe = Pipeline(link, use_model=not args.no_gemini)
     try:
-        (run_studio if args.source == "studio" else run_replay)(args, link, pipe)
+        {"replay": run_replay, "file": run_file, "udp": run_udp, "studio": run_studio}[args.source](args, link, pipe)
     except KeyboardInterrupt:
         print("\nStopped.")
     finally:
+        beacon.stop()
         link.stop()
 
 

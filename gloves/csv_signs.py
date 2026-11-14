@@ -65,10 +65,12 @@ def train(data_dir) -> dict:
         raise ValueError(f"Need recordings of at least 2 signs (one .csv per sign) in {data_dir}")
     clf = RandomForestClassifier(n_estimators=300, random_state=0, n_jobs=-1).fit(x_tr, y_tr)
     accuracy = float((clf.predict(x_te) == np.array(y_te)).mean()) if x_te else float("nan")
+    clf.n_jobs = 1  # live guesses are one window at a time: starting every core per guess is slower
     return {"clf": clf, "labels": sorted(replay), "columns": cols, "accuracy": accuracy, "replay": replay}
 
 
 def predict(model: dict, window: np.ndarray) -> tuple[str, float]:
+    model["clf"].n_jobs = 1
     probs = model["clf"].predict_proba([window_features(window)])[0]
     i = int(probs.argmax())
     return str(model["clf"].classes_[i]), float(probs[i])
@@ -86,3 +88,61 @@ def load(path) -> dict:
     import joblib
 
     return joblib.load(path)
+
+
+# ---- using the model on new glove data ----
+
+def row_vector(columns: list[str], row: dict) -> np.ndarray | None:
+    """One live frame (column name -> value) as the model's vector; None if a column is missing."""
+    try:
+        return np.array([float(row[c]) for c in columns], dtype=np.float32)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def read_recording(path, columns: list[str]) -> np.ndarray:
+    """A new CSV recording (same export as the training files), as the model's columns."""
+    import pandas as pd
+
+    df = pd.read_csv(path)
+    missing = [c for c in columns if c not in df.columns]
+    if missing:
+        raise ValueError(f"{path} lacks {len(missing)} column(s) the model needs, e.g. {', '.join(missing[:3])}")
+    return df[columns].to_numpy(dtype=np.float32)
+
+
+def detect(model: dict, frames: np.ndarray, **decoder_args) -> list[str]:
+    """All signs in a recording, in order (offline, as fast as possible)."""
+    from decoder import Decoder
+
+    d = Decoder(**decoder_args)
+    signs = []
+    for start, w in windows(frames):
+        label, prob = predict(model, w)
+        signs += [v for kind, v in d.push(label, prob, (start + WINDOW) / 60) if kind == "sign"]
+    return signs
+
+
+def phrase_test(model: dict, phrases: int = 200, seed: int = 0, frames_per_sign: int = 150, **decoder_args) -> dict:
+    """Chains held-out stretches of 2-4 random signs, as if signed in a row, and checks the
+    backend reads back exactly that phrase. Harder than single windows: signs run into each other."""
+    rng = np.random.default_rng(seed)
+    labels = model["labels"]
+    exact, found, total, examples = 0, 0, 0, []
+    for _ in range(phrases):
+        k = int(rng.integers(2, min(4, len(labels)) + 1))
+        phrase = [str(x) for x in rng.choice(labels, size=k, replace=False)]
+        parts = []
+        for s in phrase:
+            rec = model["replay"][s]
+            start = int(rng.integers(0, max(1, len(rec) - frames_per_sign)))
+            parts.append(rec[start:start + frames_per_sign])
+        got = detect(model, np.concatenate(parts), **decoder_args)
+        exact += got == phrase
+        found += sum(1 for s in phrase if s in got)
+        total += len(phrase)
+        if got != phrase and len(examples) < 5:
+            examples.append((phrase, got))
+    if not examples:
+        examples.append((phrase, got))
+    return {"phrases": phrases, "exact": exact / phrases, "signs_found": found / total, "examples": examples}

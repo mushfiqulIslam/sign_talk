@@ -61,3 +61,21 @@ def test_garbage_from_a_phone_is_ignored():
         s.close()
     finally:
         link.stop()
+
+
+def test_beacon_announces_name_and_port():
+    import socket as so
+
+    from phone_link import Beacon
+
+    rx = so.socket(so.AF_INET, so.SOCK_DGRAM)
+    rx.bind(("127.0.0.1", 0))
+    rx.settimeout(3)
+    beacon = Beacon(name="Team table", port=8765, target=("127.0.0.1", rx.getsockname()[1]), every_s=0.05)
+    beacon.start()
+    try:
+        data, _ = rx.recvfrom(2048)
+        assert json.loads(data) == {"type": "signtalk-gloves", "name": "Team table", "port": 8765}
+    finally:
+        beacon.stop()
+        rx.close()

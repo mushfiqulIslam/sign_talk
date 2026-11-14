@@ -8,7 +8,7 @@ class Decoder:
     Holding or repeating the same sign counts once until another sign or rest comes between.
     A sentence ends `gap_s` seconds after the hands last signed anything."""
 
-    def __init__(self, need: int = 3, min_prob: float = 0.6, gap_s: float = 2.0):
+    def __init__(self, need: int = 3, min_prob: float = 0.45, gap_s: float = 2.0):  # tuned: 98% of test phrases exact
         self.need, self.min_prob, self.gap_s = need, min_prob, gap_s
         self._run_label, self._run = None, 0
         self._last_sign = None

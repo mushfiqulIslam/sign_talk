@@ -1,12 +1,16 @@
 package com.signtalk.app
 
 import android.content.Context
+import android.net.wifi.WifiManager
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.net.DatagramPacket
+import java.net.DatagramSocket
 import java.net.InetSocketAddress
+import java.net.SocketTimeoutException
 import java.net.Socket
 import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
@@ -22,6 +26,10 @@ import org.json.JSONObject
 
 private const val TAG = "SignTalkGloves"
 private const val PORT = 8765
+private const val DISCOVERY_PORT = 8767
+
+/** A laptop running the glove backend, heard announcing itself on the Wi-Fi. */
+data class FoundLaptop(val name: String, val host: String, val port: Int)
 
 /** One signed sentence from the gloves, in both languages. */
 data class GloveSentence(val signs: List<String>, val fi: String, val en: String, val by: String)
@@ -55,6 +63,17 @@ class GloveLink(context: Context, private val scope: CoroutineScope) {
   /** Called around speaking, so the caption mic can pause and not caption our own voice. */
   var onSpeaking: (Boolean) -> Unit = {}
 
+  private val _found = MutableStateFlow<List<FoundLaptop>>(emptyList())
+  /** Laptops heard on the Wi-Fi in the last few seconds. */
+  val found: StateFlow<List<FoundLaptop>> = _found.asStateFlow()
+  private val lastHeard = mutableMapOf<String, Pair<FoundLaptop, Long>>()
+  /** After the user taps Disconnect, don't connect again by ourselves. */
+  private var userDisconnected = false
+  private var port = PORT
+
+  private val wifi = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+  private var discoveryJob: Job? = null
+
   private var job: Job? = null
   @Volatile private var socket: Socket? = null
   private var sentenceDone = true
@@ -74,7 +93,68 @@ class GloveLink(context: Context, private val scope: CoroutineScope) {
     _host.value = value.trim()
   }
 
+  /** Listens for laptops announcing "Sign Talk gloves here" (UDP broadcast, port 8767). */
+  fun startDiscovery() {
+    if (discoveryJob != null) return
+    discoveryJob =
+        scope.launch(Dispatchers.IO) {
+          // some phones drop broadcast packets unless an app holds this lock
+          val lock = wifi.createMulticastLock("signtalk-gloves").apply { setReferenceCounted(false) }
+          runCatching { lock.acquire() }
+          try {
+            DatagramSocket(null).use { sock ->
+              sock.reuseAddress = true
+              sock.broadcast = true
+              sock.soTimeout = 1_000
+              sock.bind(InetSocketAddress(DISCOVERY_PORT))
+              val buf = ByteArray(2048)
+              while (isActive) {
+                val packet = DatagramPacket(buf, buf.size)
+                try {
+                  sock.receive(packet)
+                  val m = JSONObject(String(packet.data, 0, packet.length, Charsets.UTF_8))
+                  if (m.optString("type") == "signtalk-gloves") {
+                    val laptop =
+                        FoundLaptop(m.optString("name", "Laptop"), packet.address.hostAddress ?: continue, m.optInt("port", PORT))
+                    synchronized(lastHeard) { lastHeard[laptop.host] = laptop to System.currentTimeMillis() }
+                  }
+                } catch (_: SocketTimeoutException) {
+                } catch (_: org.json.JSONException) {
+                }
+                refreshFound()
+              }
+            }
+          } catch (e: Exception) {
+            Log.w(TAG, "discovery stopped: ${e.javaClass.simpleName}: ${e.message}")
+          } finally {
+            runCatching { lock.release() }
+          }
+        }
+  }
+
+  private fun refreshFound() {
+    val now = System.currentTimeMillis()
+    val list =
+        synchronized(lastHeard) {
+          lastHeard.entries.removeAll { now - it.value.second > 5_000 }
+          lastHeard.values.map { it.first }.sortedBy { it.name }
+        }
+    if (list != _found.value) _found.value = list
+    // exactly one laptop on the Wi-Fi and we're not connected: pair with it by ourselves
+    if (job == null && !userDisconnected && list.size == 1) {
+      scope.launch(Dispatchers.Main) { if (job == null) connectTo(list[0]) }
+    }
+  }
+
+  /** Tap on a found laptop. */
+  fun connectTo(laptop: FoundLaptop) {
+    _host.value = laptop.host
+    port = laptop.port
+    connect()
+  }
+
   fun connect() {
+    userDisconnected = false
     val target = _host.value
     if (target.isBlank()) {
       _status.value = "Type the laptop's address first"
@@ -88,12 +168,12 @@ class GloveLink(context: Context, private val scope: CoroutineScope) {
             _status.value = "Connecting to $target…"
             try {
               Socket().use { s ->
-                s.connect(InetSocketAddress(target, PORT), 5_000)
+                s.connect(InetSocketAddress(target, port), 5_000)
                 s.tcpNoDelay = true
                 socket = s
                 _connected.value = true
                 _status.value = "Connected to $target"
-                Log.i(TAG, "connected to $target:$PORT")
+                Log.i(TAG, "connected to $target:$port")
                 val reader = BufferedReader(InputStreamReader(s.getInputStream(), Charsets.UTF_8))
                 while (isActive) {
                   val line = reader.readLine() ?: break
@@ -110,6 +190,12 @@ class GloveLink(context: Context, private val scope: CoroutineScope) {
             delay(3_000)
           }
         }
+  }
+
+  /** The Disconnect button: also stops pairing by ourselves until Connect is tapped. */
+  fun disconnectByUser() {
+    userDisconnected = true
+    disconnect()
   }
 
   fun disconnect() {
@@ -169,6 +255,7 @@ class GloveLink(context: Context, private val scope: CoroutineScope) {
   }
 
   fun close() {
+    discoveryJob?.cancel()
     disconnect()
     tts.shutdown()
   }

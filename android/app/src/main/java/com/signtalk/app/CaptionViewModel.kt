@@ -51,6 +51,7 @@ class CaptionViewModel(app: Application) : AndroidViewModel(app) {
     viewModelScope.launch { captioner.caption.collect { glasses.show(it) } }
     // Speak glove sentences in the language picked on screen; pause the caption mic meanwhile
     // so the app doesn't caption its own voice.
+    gloves.startDiscovery()
     gloves.finnish = { captioner.language.value == Language.FINNISH }
     gloves.onSpeaking = { speaking ->
       if (speaking && captioner.listening.value) {

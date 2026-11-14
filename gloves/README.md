@@ -15,8 +15,17 @@ Then (`gloves\.venv\Scripts\signtalk-gloves` on Windows, `gloves/.venv/bin/signt
 ```
 signtalk-gloves train --data <folder with one CSV per sign>    once; prints accuracy on unseen repetitions
 signtalk-gloves run                                            replays recorded signs (no gloves needed)
+signtalk-gloves run --source file --file sentence.csv          signs in a new recording (same CSV export), played in real time
+signtalk-gloves run --source udp                               live: any tool sends frames to UDP 9100, one JSON object
+                                                               per packet with the CSV's column names (Timestamp not needed)
 signtalk-gloves run --source studio                            live gloves from Rokoko Studio (record signs first, below)
+signtalk-gloves eval                                           score on 200 random phrases of held-out signs
+signtalk-gloves detect sentence.csv                            print the signs in a recording
 ```
+How well it reads the 10 recorded signs (one signer, one session; expect lower with other people or days):
+99% of single 1 s windows, and **98% of random 2-4 sign phrases read back exactly** (all signs found).
+A sign counts after 3 windows in a row agree with confidence >= 0.45; a sentence ends 2 s after the
+hands stop signing. There is no "hands resting" recording yet: one would make live use safer.
 It prints the laptop's address. In the app: **Gloves** card -> type that address -> **Connect** ->
 **Play glove demo** (replay mode) or sign with the gloves (studio mode).
 - Windows asks to let Python through the firewall the first time: tick **Private and Public**.

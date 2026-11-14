@@ -40,3 +40,36 @@ def test_save_and_load(tmp_path):
     path = tmp_path / "m.joblib"
     csv_signs.save(csv_signs.train(tmp_path), path)
     assert csv_signs.load(path)["labels"] == ["day", "me"]
+
+
+def two_signs(tmp_path):
+    fake_recording(tmp_path / "me.csv", wave=2)
+    fake_recording(tmp_path / "day.csv", wave=7)
+    return csv_signs.train(tmp_path)
+
+
+def test_detect_finds_signs_in_order_in_a_longer_recording(tmp_path):
+    model = two_signs(tmp_path)
+    frames = np.concatenate([model["replay"]["me"][:150], model["replay"]["day"][:150]])
+    assert csv_signs.detect(model, frames) == ["me", "day"]
+
+
+def test_row_vector_follows_model_column_order():
+    cols = ["a", "b"]
+    assert csv_signs.row_vector(cols, {"b": 2, "a": 1, "extra": 9}).tolist() == [1.0, 2.0]
+    assert csv_signs.row_vector(cols, {"a": 1}) is None  # a missing column: frame can't be used
+
+
+def test_read_recording_names_missing_columns(tmp_path):
+    pd.DataFrame({"Timestamp": [0], "RightWrist_flexion": [1.0]}).to_csv(tmp_path / "x.csv", index=False)
+    try:
+        csv_signs.read_recording(tmp_path / "x.csv", ["RightWrist_flexion", "LeftWrist_flexion"])
+        assert False, "should fail"
+    except ValueError as e:
+        assert "LeftWrist_flexion" in str(e)
+
+
+def test_phrase_test_scores_whole_phrases(tmp_path):
+    model = two_signs(tmp_path)
+    score = csv_signs.phrase_test(model, phrases=10, seed=1)
+    assert score["phrases"] == 10 and 0 <= score["exact"] <= 1 and len(score["examples"]) > 0

@@ -147,6 +147,7 @@ private fun CaptionScreen(vm: CaptionViewModel, onRegister: () -> Unit, onUnregi
   val gloveConnected by vm.gloves.connected.collectAsStateWithLifecycle()
   val gloveSigns by vm.gloves.liveSigns.collectAsStateWithLifecycle()
   val gloveSentence by vm.gloves.sentence.collectAsStateWithLifecycle()
+  val gloveLaptops by vm.gloves.found.collectAsStateWithLifecycle()
 
   Column(
       Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState())
@@ -257,6 +258,30 @@ private fun CaptionScreen(vm: CaptionViewModel, onRegister: () -> Unit, onUnregi
         }
         Spacer(Modifier.height(12.dp))
       }
+      // laptops running `signtalk-gloves run` on this Wi-Fi; tap one to pair
+      if (gloveLaptops.isNotEmpty()) {
+        Label("Found on this Wi-Fi")
+        gloveLaptops.forEach { laptop ->
+          val active = gloveConnected && laptop.host == gloveHost
+          Row(
+              Modifier.fillMaxWidth().padding(bottom = 8.dp).clip(RoundedCornerShape(14.dp))
+                  .background(if (active) Teal.copy(alpha = 0.18f) else Bg)
+                  .border(1.dp, if (active) Teal else CardEdge, RoundedCornerShape(14.dp))
+                  .clickable(enabled = !active) { vm.gloves.connectTo(laptop) }.padding(horizontal = 14.dp, vertical = 12.dp),
+              verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Column(Modifier.weight(1f)) {
+              Text(laptop.name, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+              Text(laptop.host, color = Muted, fontSize = 13.sp)
+            }
+            Text(if (active) "Connected" else "Tap to connect", color = if (active) Teal else Muted, fontSize = 13.sp)
+          }
+        }
+        Spacer(Modifier.height(4.dp))
+      } else if (!gloveConnected) {
+        Text("Looking for a laptop running signtalk-gloves… or type its address:", color = Muted, fontSize = 13.sp)
+        Spacer(Modifier.height(8.dp))
+      }
       Row(verticalAlignment = Alignment.CenterVertically) {
         OutlinedTextField(
             value = gloveHost, onValueChange = { vm.gloves.setHost(it) }, singleLine = true,
@@ -267,7 +292,7 @@ private fun CaptionScreen(vm: CaptionViewModel, onRegister: () -> Unit, onUnregi
         )
         Spacer(Modifier.width(10.dp))
         Button(
-            onClick = { if (gloveConnected) vm.gloves.disconnect() else vm.gloves.connect() },
+            onClick = { if (gloveConnected) vm.gloves.disconnectByUser() else vm.gloves.connect() },
             shape = RoundedCornerShape(14.dp), modifier = Modifier.height(56.dp),
             colors = ButtonDefaults.buttonColors(containerColor = if (gloveConnected) CardEdge else Teal,
                 contentColor = if (gloveConnected) Color.White else Color(0xFF00201D)),

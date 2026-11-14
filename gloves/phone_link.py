@@ -90,3 +90,37 @@ def laptop_addresses() -> list[str]:
     except OSError:
         pass
     return sorted(found)
+
+
+DISCOVERY_PORT = 8767  # the phone listens here for laptops announcing themselves
+
+
+class Beacon:
+    """Tells phones on the same Wi-Fi "Sign Talk gloves here", once a second (UDP broadcast).
+    The phone takes the laptop's address from the packet, so nobody types an IP.
+    Some networks block broadcasts; typing the address in the app still works then."""
+
+    def __init__(self, name: str, port: int, target=("255.255.255.255", DISCOVERY_PORT), every_s: float = 1.0):
+        self.message = json.dumps({"type": "signtalk-gloves", "name": name, "port": port}).encode()
+        self.target, self.every_s = target, every_s
+        self._stop = threading.Event()
+
+    def start(self) -> None:
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def _run(self) -> None:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        warned = False
+        while not self._stop.is_set():
+            try:
+                s.sendto(self.message, self.target)
+            except OSError as e:
+                if not warned:
+                    print(f"(can't announce on the Wi-Fi: {e}; type the address in the app instead)")
+                    warned = True
+            self._stop.wait(self.every_s)
+        s.close()
