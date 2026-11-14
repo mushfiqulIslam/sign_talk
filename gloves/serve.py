@@ -22,7 +22,14 @@ import socket
 
 from phone_link import Beacon, PhoneLink, laptop_addresses
 
-DEFAULT_MODEL = Path.home() / ".signtalk" / "gloves-model.joblib"
+HERE = Path(__file__).resolve().parent
+TRAINED_MODEL = Path.home() / ".signtalk" / "gloves-model.joblib"
+
+
+def default_model() -> Path:
+    """The model shipped next to the scripts (a shared bundle), else the one `train` saved."""
+    bundled = HERE / "gloves-model.joblib"
+    return bundled if bundled.is_file() else TRAINED_MODEL
 # Each tap of "Play glove demo" on the phone plays the next phrase.
 DEFAULT_DEMO = "me,study,Aalto,university/nice,meet/good,day"
 REPLAY_FRAMES = 150  # 2.5 s of each sign
@@ -213,26 +220,37 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     t = sub.add_parser("train", help="train the sign model from CSV recordings (one file per sign)")
     t.add_argument("--data", required=True, help="folder of <sign>.csv files")
-    t.add_argument("--model", type=Path, default=DEFAULT_MODEL)
+    t.add_argument("--model", type=Path, default=TRAINED_MODEL)
     r = sub.add_parser("run", help="recognise signs and send sentences to the phone")
     r.add_argument("--source", choices=["replay", "file", "udp", "studio"], default="replay",
                    help="replay: held-out recordings; file: a new CSV recording; udp: live frames with the CSV's columns; "
                         "studio: Rokoko Studio live stream (needs record.py recordings)")
     r.add_argument("--file", help="CSV recording for --source file")
     r.add_argument("--udp-port", type=int, default=9100, help="for --source udp")
-    r.add_argument("--model", type=Path, default=DEFAULT_MODEL)
+    r.add_argument("--model", type=Path, default=None)
     r.add_argument("--demo", default=DEFAULT_DEMO, help="phrases to replay, signs by comma, phrases by /")
     r.add_argument("--port", type=int, default=8765, help="the phone connects to this port")
     r.add_argument("--studio-port", type=int, default=14043)
     r.add_argument("--name", default=socket.gethostname(), help="name the phone shows for this laptop")
+    r.add_argument("--no-qr", action="store_true", help="don't open the QR page in the browser")
     r.add_argument("--no-gemini", action="store_true", help="plain words instead of a Gemini sentence")
     e = sub.add_parser("eval", help="score the model on random phrases of held-out signs")
-    e.add_argument("--model", type=Path, default=DEFAULT_MODEL)
+    e.add_argument("--model", type=Path, default=None)
     e.add_argument("--phrases", type=int, default=200)
     d = sub.add_parser("detect", help="print the signs found in a CSV recording")
     d.add_argument("file")
-    d.add_argument("--model", type=Path, default=DEFAULT_MODEL)
+    d.add_argument("--model", type=Path, default=None)
+    b = sub.add_parser("bundle", help="make a zip to share: backend + model + start scripts (no API keys)")
+    b.add_argument("--model", type=Path, default=TRAINED_MODEL)
+    b.add_argument("--out", type=Path, default=Path.home() / "Downloads" / "SignTalk-Gloves.zip")
     args = ap.parse_args()
+    if getattr(args, "model", None) is None:
+        args.model = default_model()
+    if args.cmd == "bundle":
+        import bundle
+
+        bundle.make(args.model, args.out)
+        return
 
     if args.cmd == "eval":
         import csv_signs
@@ -265,7 +283,13 @@ def main() -> None:
     beacon = Beacon(name=args.name, port=link.port)
     beacon.start()
     print(f"Announcing '{args.name}' on the Wi-Fi: the app finds this laptop by itself.")
-    print("If it doesn't: Sign Talk > Gloves > enter " + " or ".join(f"{ip}" for ip in laptop_addresses()) + f"  (port {link.port})")
+    addresses = laptop_addresses()
+    if addresses and not args.no_qr:
+        import qr_page
+
+        if qr_page.show(addresses[0], link.port, args.name):
+            print("Opened a QR code in the browser: Sign Talk > Gloves > Scan QR.")
+    print("Or type the address in the Gloves card: " + " or ".join(f"{ip}" for ip in laptop_addresses()) + f"  (port {link.port})")
     pipe = Pipeline(link, use_model=not args.no_gemini)
     try:
         {"replay": run_replay, "file": run_file, "udp": run_udp, "studio": run_studio}[args.source](args, link, pipe)

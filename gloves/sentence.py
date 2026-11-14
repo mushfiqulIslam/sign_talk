@@ -11,6 +11,17 @@ WORDS = {
     "study": ("opiskella", "study"), "university": ("yliopisto", "university"), "Aalto": ("Aalto", "Aalto"),
     "nice": ("mukava", "nice"), "meet": ("tavata", "meet"), "good": ("hyvä", "good"), "day": ("päivä", "day"),
 }
+# Natural sentences for the demo phrases, used when there is no Gemini key (e.g. a shared bundle).
+PHRASES = {
+    ("me", "study", "Aalto", "university"): ("Opiskelen Aalto-yliopistossa.", "I study at Aalto University."),
+    ("me", "study", "university"): ("Opiskelen yliopistossa.", "I study at the university."),
+    ("me", "study"): ("Opiskelen.", "I am a student."),
+    ("nice", "meet"): ("Hauska tavata.", "Nice to meet you."),
+    ("good", "day"): ("Hyvää päivää!", "Good day!"),
+    ("me", "name"): ("Nimeni on…", "My name is…"),
+    ("me", "address"): ("Osoitteeni on…", "My address is…"),
+    ("Aalto", "university"): ("Aalto-yliopisto.", "Aalto University."),
+}
 MODEL = "gemini-flash-latest"
 PROMPT = """A deaf person signed these Finnish Sign Language signs, in this order: {signs}
 (word meanings: {glosses}).
@@ -50,7 +61,8 @@ def make(signs: list[str]) -> dict:
     """{"fi", "en", "by"}: by = "gemini" or "words" (fallback)."""
     key = _api_key()
     if not key:
-        return _plain(signs)
+        known = PHRASES.get(tuple(signs))
+        return {"fi": known[0], "en": known[1], "by": "phrasebook"} if known else _plain(signs)
     glosses = ", ".join(f"{s} = {WORDS.get(s, (s, s))[0]} / {WORDS.get(s, (s, s))[1]}" for s in signs)
     try:
         text = _ask_gemini(PROMPT.format(signs=" ".join(s.upper() for s in signs), glosses=glosses), key)

@@ -60,6 +60,7 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.material3)
+  implementation("com.google.android.gms:play-services-code-scanner:16.1.0") // QR scan, no camera permission
   implementation(libs.mwdat.core)
   implementation(libs.mwdat.display)
   implementation(libs.mwdat.mockdevice)

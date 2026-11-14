@@ -4,7 +4,7 @@ version = "0.2.0"
 description = "Sign Talk glove backend: data-glove signs -> sentence -> phone over Wi-Fi"
 license = "MIT"
 requires-python = ">=3.10"
-dependencies = ["numpy>=2.0", "lz4>=4.0", "pandas", "scikit-learn", "joblib"]
+dependencies = ["numpy>=2.0", "lz4>=4.0", "pandas", "scikit-learn", "joblib", "qrcode"]
 
 [project.optional-dependencies]
 dev = ["pytest"]
@@ -17,4 +17,4 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["serve", "phone_link", "decoder", "sentence", "csv_signs", "signs", "studio"]
+py-modules = ["serve", "phone_link", "decoder", "sentence", "csv_signs", "signs", "studio", "qr_page", "bundle"]

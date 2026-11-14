@@ -1,0 +1,22 @@
+SIGN TALK GLOVES: QUICK START
+=============================
+
+You need: this folder on a laptop, and the Sign Talk app on an Android phone.
+Laptop and phone on the SAME Wi-Fi (or the laptop on the phone's hotspot).
+
+1. Start the laptop side
+   Windows:      double-click  start.bat
+   Mac / Linux:  open a terminal in this folder and run  ./start.sh
+   The first start takes about a minute (it sets itself up). Keep the window open.
+   Windows may ask about the firewall: tick Private AND Public, then Allow.
+
+2. A page with a big QR code opens in the browser.
+
+3. On the phone: open Sign Talk, scroll to "Gloves", tap "Scan QR", point at the code.
+   (If the phone already shows the laptop under "Found on this Wi-Fi", just tap it.)
+
+4. Tap "Play glove demo". The phone shows the signs, then the sentence,
+   and reads it out loud. Turn the phone's volume up.
+
+Stop: close the window (or Ctrl+C).
+Trouble connecting: try the phone's hotspot instead of the venue Wi-Fi.

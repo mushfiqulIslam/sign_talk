@@ -146,6 +146,16 @@ class GloveLink(context: Context, private val scope: CoroutineScope) {
     }
   }
 
+  /** The laptop's QR code (`signtalk://connect?host=..&port=..&name=..`). False if it isn't one of ours. */
+  fun connectFromLink(link: String): Boolean {
+    val uri = runCatching { android.net.Uri.parse(link) }.getOrNull() ?: return false
+    if (uri.scheme != "signtalk" || uri.host != "connect") return false
+    val host = uri.getQueryParameter("host")?.takeIf { it.isNotBlank() } ?: return false
+    val port = uri.getQueryParameter("port")?.toIntOrNull() ?: PORT
+    connectTo(FoundLaptop(uri.getQueryParameter("name") ?: "Laptop", host, port))
+    return true
+  }
+
   /** Tap on a found laptop. */
   fun connectTo(laptop: FoundLaptop) {
     _host.value = laptop.host

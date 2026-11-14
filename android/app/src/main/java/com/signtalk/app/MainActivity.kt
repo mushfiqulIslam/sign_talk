@@ -100,6 +100,7 @@ class MainActivity : ComponentActivity() {
           Box(Modifier.fillMaxSize()) {
             CaptionScreen(
                 vm,
+                onScanQr = { scanGloveQr() },
                 onRegister = { Wearables.startRegistration(this@MainActivity) },
                 onUnregister = { Wearables.startUnregistration(this@MainActivity) },
             )
@@ -111,6 +112,32 @@ class MainActivity : ComponentActivity() {
       }
     }
     permissions.launch(arrayOf(BLUETOOTH, BLUETOOTH_CONNECT, RECORD_AUDIO))
+    handleLink(intent)
+  }
+
+  override fun onNewIntent(intent: android.content.Intent) {
+    super.onNewIntent(intent)
+    handleLink(intent)
+  }
+
+  /** Opened from the laptop's QR code with the phone's camera app. */
+  private fun handleLink(intent: android.content.Intent?) {
+    intent?.dataString?.let { if (vm.gloves.connectFromLink(it)) Toast.makeText(this, "Connecting to the gloves laptop…", Toast.LENGTH_SHORT).show() }
+  }
+
+  /** Google's code scanner: its own camera screen, no camera permission for us. */
+  fun scanGloveQr() {
+    val options =
+        com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(com.google.mlkit.vision.barcode.common.Barcode.FORMAT_QR_CODE)
+            .build()
+    com.google.mlkit.vision.codescanner.GmsBarcodeScanning.getClient(this, options)
+        .startScan()
+        .addOnSuccessListener { code ->
+          val ok = code.rawValue?.let { vm.gloves.connectFromLink(it) } ?: false
+          Toast.makeText(this, if (ok) "Connecting to the gloves laptop…" else "That isn't a Sign Talk gloves code", Toast.LENGTH_SHORT).show()
+        }
+        .addOnFailureListener { e -> Toast.makeText(this, "Scanner unavailable: ${e.message}", Toast.LENGTH_LONG).show() }
   }
 }
 
@@ -127,7 +154,7 @@ private val SignTalkColors =
     darkColorScheme(primary = Teal, onPrimary = Color(0xFF00201D), background = Bg, surface = Bg, onSurface = Color.White)
 
 @Composable
-private fun CaptionScreen(vm: CaptionViewModel, onRegister: () -> Unit, onUnregister: () -> Unit) {
+private fun CaptionScreen(vm: CaptionViewModel, onScanQr: () -> Unit, onRegister: () -> Unit, onUnregister: () -> Unit) {
   val registration by vm.registration.collectAsStateWithLifecycle()
   val glassesStatus by vm.glasses.status.collectAsStateWithLifecycle()
   val devicesInfo by vm.glasses.devicesInfo.collectAsStateWithLifecycle()
@@ -256,6 +283,13 @@ private fun CaptionScreen(vm: CaptionViewModel, onRegister: () -> Unit, onUnregi
             Text(if (fi) s.en else s.fi, color = Muted, fontSize = 15.sp)
           }
         }
+        Spacer(Modifier.height(12.dp))
+      }
+      if (!gloveConnected) {
+        Button(
+            onClick = onScanQr, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Teal, contentColor = Color(0xFF00201D)),
+        ) { Text("Scan QR on the laptop", fontSize = 17.sp, fontWeight = FontWeight.Bold) }
         Spacer(Modifier.height(12.dp))
       }
       // laptops running `signtalk-gloves run` on this Wi-Fi; tap one to pair
