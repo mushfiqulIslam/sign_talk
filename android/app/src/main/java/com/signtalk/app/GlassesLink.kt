@@ -3,6 +3,7 @@ package com.signtalk.app
 import android.content.Context
 import android.util.Log
 import com.meta.wearable.dat.core.Wearables
+import com.meta.wearable.dat.core.selectors.AutoDeviceSelector
 import com.meta.wearable.dat.core.selectors.DeviceSelector
 import com.meta.wearable.dat.core.selectors.SpecificDeviceSelector
 import com.meta.wearable.dat.core.session.DeviceSession
@@ -95,6 +96,22 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
         )
   }
 
+  /**
+   * Real Meta Ray-Ban Display glasses, paired through the Meta AI app. Waits until the
+   * app is registered with Meta AI (see [MainActivity]), then uses whichever connected
+   * glasses have a display.
+   */
+  fun connectRealGlasses() {
+    if (session != null) return
+    scope.launch(errors) {
+      if (Wearables.registrationState.value != RegistrationState.REGISTERED) {
+        _status.value = "Glasses: tap \"Connect to Meta AI\" and approve in the Meta AI app"
+      }
+      Wearables.registrationState.first { it == RegistrationState.REGISTERED }
+      startSession(AutoDeviceSelector(filter = { it.isDisplayCapable() }))
+    }
+  }
+
   /** Close the display, then the session (the order Meta's guide asks for). */
   fun disconnect() {
     display.value = null
@@ -135,7 +152,15 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
               }
               s.start()
             },
-            onFailure = { e, _ -> _status.value = "Session failed: ${e.description}" },
+            onFailure = { e, _ ->
+              _status.value = "Glasses: not found yet (${e.description}), retrying…"
+              Log.w(TAG, "createSession failed: ${e.description}")
+              // Right after registration the toolkit may not have listed the glasses yet.
+              scope.launch(errors) {
+                delay(2000)
+                if (session == null) startSession(selector)
+              }
+            },
         )
   }
 

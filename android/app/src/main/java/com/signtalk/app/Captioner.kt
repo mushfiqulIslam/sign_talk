@@ -34,7 +34,7 @@ class Captioner(private val context: Context) {
 
   private val handler = Handler(Looper.getMainLooper())
   private var recognizer: SpeechRecognizer? = null
-  private val finished = ArrayDeque<String>()
+  private val transcript = Transcript()
 
   private val intent =
       Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -73,10 +73,6 @@ class Captioner(private val context: Context) {
     handler.postDelayed(::listen, delayMs)
   }
 
-  private fun publish(current: String) {
-    _caption.value = (finished + current).filter { it.isNotBlank() }.joinToString(" ")
-  }
-
   private val listener =
       object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {
@@ -85,15 +81,11 @@ class Captioner(private val context: Context) {
 
         override fun onPartialResults(partialResults: Bundle?) {
           val text = partialResults.bestText() ?: return
-          publish(text)
+          _caption.value = transcript.partial(text)
         }
 
         override fun onResults(results: Bundle?) {
-          results.bestText()?.takeIf { it.isNotBlank() }?.let {
-            finished.addLast(it)
-            while (finished.size > 3) finished.removeFirst()
-          }
-          publish("")
+          _caption.value = transcript.final(results.bestText().orEmpty())
           restart(0)
         }
 

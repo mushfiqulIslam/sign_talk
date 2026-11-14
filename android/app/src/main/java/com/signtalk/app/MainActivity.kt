@@ -26,6 +26,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.meta.wearable.dat.core.Wearables
+import com.meta.wearable.dat.core.types.RegistrationState
+
+/** true = the real Ray-Ban Display glasses; false = Meta's mock glasses shown in Chrome. */
+private const val USE_REAL_GLASSES = true
 
 class MainActivity : ComponentActivity() {
 
@@ -34,7 +39,7 @@ class MainActivity : ComponentActivity() {
   private val permissions =
       registerForActivityResult(RequestMultiplePermissions()) { results ->
         if (results.values.all { it }) {
-          vm.startAll()
+          vm.startAll(USE_REAL_GLASSES)
         } else {
           Toast.makeText(this, "Bluetooth and microphone permissions are needed", Toast.LENGTH_LONG)
               .show()
@@ -43,13 +48,20 @@ class MainActivity : ComponentActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-    setContent { MaterialTheme { Surface(Modifier.fillMaxSize()) { CaptionScreen(vm) } } }
+    setContent {
+      MaterialTheme {
+        Surface(Modifier.fillMaxSize()) {
+          CaptionScreen(vm, onRegister = { Wearables.startRegistration(this) })
+        }
+      }
+    }
     permissions.launch(arrayOf(BLUETOOTH, BLUETOOTH_CONNECT, RECORD_AUDIO))
   }
 }
 
 @Composable
-private fun CaptionScreen(vm: CaptionViewModel) {
+private fun CaptionScreen(vm: CaptionViewModel, onRegister: () -> Unit) {
+  val registration by vm.registration.collectAsStateWithLifecycle()
   val glassesStatus by vm.glasses.status.collectAsStateWithLifecycle()
   val previewHint by vm.glasses.previewHint.collectAsStateWithLifecycle()
   val micStatus by vm.captioner.status.collectAsStateWithLifecycle()
@@ -61,6 +73,13 @@ private fun CaptionScreen(vm: CaptionViewModel) {
     Spacer(Modifier.height(8.dp))
     Text(glassesStatus)
     Text(micStatus)
+    if (USE_REAL_GLASSES) {
+      Text("Meta AI: $registration")
+      if (registration != RegistrationState.REGISTERED) {
+        Spacer(Modifier.height(8.dp))
+        Button(onClick = onRegister) { Text("Connect to Meta AI") }
+      }
+    }
     previewHint?.let {
       Spacer(Modifier.height(8.dp))
       Text("Lens preview on laptop:", style = MaterialTheme.typography.labelMedium)
