@@ -2,6 +2,8 @@
 
 Date: 2026-11-14 (Junction, Saturday). Demo freeze 20:00 today.
 
+> **Changed Saturday afternoon:** Verda wasn't reachable, so training and serving moved to **Modal**, which is also a bonus challenge ("Best use of Modal: most ambitious working AI system on Modal"). Wherever this document says Verda, read Modal. The Verda challenge is dropped. The live sign finder is a Modal web endpoint.
+
 ## Intent and why
 
 A Finnish deaf or hard-of-hearing wearer sees **Finnish Sign Language (FinSL) signs** on the glasses lens for what people around them say, in **Finnish or English**. The captions stay too. The signs are extra help for people whose first language is FinSL, not a replacement for the text.

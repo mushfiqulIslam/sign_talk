@@ -1,0 +1,14 @@
+[project]
+name = "finsl-training"
+version = "0.1.0"
+description = "Finnish + English sentence -> FinSL sign names: data prep, fine-tuning on Modal, evaluation"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = ["pytest>=8"]
+modal = ["modal>=1.0"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

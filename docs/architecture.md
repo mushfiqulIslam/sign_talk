@@ -102,7 +102,7 @@ Check first: does video play in the mock lens in Chrome?
 
 Version 2 only covers a handful of fixed messages. Version 3 shows Finnish Sign Language (FinSL) signs for **any** sentence someone says, in **Finnish or English**. We teach a small AI model (Gemma) the order signs come in, using real FinSL data. The caption text stays; the signs play after each sentence as a short video, then the caption comes back. Grey parts come from earlier versions or from others; purple runs live for every sentence; blue is done once, before the demo. Full design: `docs/superpowers/specs/2026-11-14-finsl-signs-design.md`.
 
-![Version 3: speech to text, sign finder (Gemma on Verda), Signbank check, video maker, lens; below, the corpus, data prep, fine-tuning and evaluation done once](images/architecture-v3.png)
+![Version 3: speech to text, sign finder (Gemma on Modal), Signbank check, video maker, lens; below, the corpus, data prep, fine-tuning and evaluation done once](images/architecture-v3.png)
 
 <details>
 <summary>Mermaid source</summary>
@@ -126,7 +126,7 @@ flowchart LR
   subgraph GlassesOut["Glasses"]
     lens["Lens display<br/><small>mock, in Chrome</small>"]
   end
-  subgraph Verda["Verda"]
+  subgraph Modal["Modal"]
     gemma["Gemma<br/><small>fine-tuned by us</small>"]
   end
   subgraph Online["Online"]
@@ -135,7 +135,7 @@ flowchart LR
   subgraph Once["Built once, before the demo"]
     corpus["FinSL corpus<br/><small>~5k signed sentences</small>"]
     prep["Data prep<br/><small>clean, add English</small>"]
-    tune["Fine-tuning<br/><small>LoRA on Verda GPU</small>"]
+    tune["Fine-tuning<br/><small>LoRA on Modal GPU</small>"]
     evalx["Evaluation<br/><small>vs. no training</small>"]
   end
   mic --> stt --> finder --> check --> maker --> render --> lens
@@ -156,7 +156,7 @@ flowchart LR
 
 **What happens for every sentence (purple):**
 
-- **Sign finder:** when a sentence is finished, the phone sends it to the laptop. The laptop asks our Gemma model, running on Verda, which signs to show and in which order. Example: *"Juna Helsinkiin lähtee laiturilta neljä"* → `JUNA-ASEMA HELSINKI LAITURI NELJÄ`. Sign language has its own word order and leaves out words like "is", which is why a model is used instead of swapping word for word. If Gemma does not answer within about 3 seconds, Gemini does the same job as a backup.
+- **Sign finder:** when a sentence is finished, the phone sends it to the laptop. The laptop asks our Gemma model, running on Modal, which signs to show and in which order. Example: *"Juna Helsinkiin lähtee laiturilta neljä"* → `JUNA-ASEMA HELSINKI LAITURI NELJÄ`. Sign language has its own word order and leaves out words like "is", which is why a model is used instead of swapping word for word. If Gemma does not answer within about 3 seconds, Gemini does the same job as a backup.
 - **Signbank check:** every sign name is looked up in Finnish Signbank, the official FinSL dictionary. Only signs that really exist are shown. A word with no sign (a name, for example) is spelled with the finger alphabet. This is how we make sure nobody is shown a made-up sign.
 - **Video maker:** joins the Signbank video of each sign into one short clip and makes it small enough for the lens (Meta's limit is 400 pixels per side).
 - **Lens renderer:** shows the caption, plays the sign clip full screen, then shows the caption again. A "Signs" switch in the app turns this off; with it off, or with the laptop unreachable, captions work exactly as before.
@@ -165,7 +165,7 @@ flowchart LR
 
 - **FinSL corpus:** real recordings of 21+ deaf signers retelling cartoons and picture books, from the University of Jyväskylä. Each sentence comes with its signs written down in order and a Finnish translation: about 5,000 examples. Downloaded to `../finsl-data/` (outside this repo; see `LINKS.md` there).
 - **Data prep:** remove notes like "pointing" or "unclear", have Gemini translate each Finnish sentence to English (same signs), and add a few dozen station-announcement examples written by us, since the recordings are stories, not stations.
-- **Fine-tuning:** teach a small Gemma model on a rented Verda GPU, from sentence to signs. A laptop cannot do this in the time we have.
+- **Fine-tuning:** teach a small Gemma model on a rented Modal GPU, from sentence to signs. A laptop cannot do this in the time we have.
 - **Evaluation:** test on signers the model never saw, comparing our trained model with an untrained one, so we can show a real number in the pitch.
 
 **Limits to say out loud:**
