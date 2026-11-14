@@ -14,11 +14,12 @@ Each diagram is shown as an image (works in Android Studio and on GitHub). The e
 
 Someone speaks and the words appear in the glasses lens. Everything runs inside the Android app. Green parts work today; amber is the step we are building now.
 
-Now and next: phone mic and glasses mic both feed speech to text, then the lens renderer and the mock lens
+![Now and next: phone mic and glasses mic both feed speech to text, then the lens renderer and the mock lens](images/architecture-v1.png)
 
-\<details\> \<summary\>Mermaid source\</summary\>
+<details>
+<summary>Mermaid source</summary>
 
-```
+```mermaid
 flowchart LR
   subgraph GlassesIn["Glasses"]
     gmic["Glasses mic<br/><small>mock: phone mic</small>"]
@@ -41,7 +42,7 @@ flowchart LR
   class gmic,gstt next
 ```
 
-\</details\>
+</details>
 
 **Done and working**
 
@@ -60,11 +61,12 @@ Done means: you speak and the words appear in the mock lens within about a secon
 
 Some deaf people find sign language easier than reading. For a small set of important messages the lens plays a short sign language clip instead of the caption text. Grey parts come from version 1; purple parts are new.
 
-Version 2: speech to text, clip matcher, lens renderer plays a sign clip or shows text
+![Version 2: speech to text, clip matcher, lens renderer plays a sign clip or shows text](images/architecture-v2.png)
 
-\<details\> \<summary\>Mermaid source\</summary\>
+<details>
+<summary>Mermaid source</summary>
 
-```
+```mermaid
 flowchart LR
   subgraph GlassesIn["Glasses"]
     mic["Glasses mic<br/><small>phone mic backup</small>"]
@@ -88,7 +90,7 @@ flowchart LR
   class match,render,clips v2
 ```
 
-\</details\>
+</details>
 
 - **Clip matcher:** checks each finished sentence for the trigger phrases of each clip, for example "fire alarm" or "evacuate" for the danger clip, "platform" or "track" for the platform-changed clip. Simple keyword matching; no model training. Gemini can take over later if announcements are worded in too many ways.
 - **Lens renderer:** plays the matching clip in the glasses' full-screen video player, then goes back to captions. With no match it shows the caption text as in version 1.
@@ -100,11 +102,12 @@ Check first: does video play in the mock lens in Chrome?
 
 The other half of the conversation. The glasses help the deaf person understand others; the gloves let the deaf person answer: they sign, and a hearing person who does not know sign language reads or hears it, in Finnish and English.
 
-Gloves: Rokoko gloves, Rokoko Studio, stream reader, recogniser, sentence maker, then text on screen and voice
+![Gloves: Rokoko gloves, Rokoko Studio, stream reader, recogniser, sentence maker, then text on screen and voice](images/architecture-gloves.png)
 
-\<details\> \<summary\>Mermaid source\</summary\>
+<details>
+<summary>Mermaid source</summary>
 
-```
+```mermaid
 flowchart LR
   subgraph Deaf["Deaf person"]
     gloves["Rokoko gloves<br/><small>makes a sign</small>"]
@@ -132,7 +135,7 @@ flowchart LR
   class rec,sentence,text,voice next
 ```
 
-\</details\>
+</details>
 
 - **Rokoko gloves and Studio:** the gloves measure finger bend and hand rotation. Rokoko Studio (Windows or Apple-silicon Mac only, not Linux) streams this to our scripts on the same laptop.
 - **Stream reader and recogniser** (`gloves/`, built, not yet tried on real gloves): the recogniser compares the live hand with the recorded signs and picks the closest one, or none. No long training: adding a sign means recording it. Letters signed one after another are joined into one word, for example a fingerspelled name.
