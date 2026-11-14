@@ -69,13 +69,53 @@ class Pipeline:
         self.link.send({"type": "sentence", "signs": signs, "fi": s["fi"], "en": s["en"], "by": s["by"], "ms": ms})
 
 
+class GloveMonitor:
+    """Says whether glove data is arriving: every 2 s in the terminal and on the phone."""
+
+    def __init__(self, link: PhoneLink, source: str, start: float | None = None):
+        self.link, self.source = link, source
+        self.started = time.time() if start is None else start
+        self.window_start = self.started
+        self.count, self.last = 0, None
+        self.last_guess: tuple[str, float] | None = None
+
+    def frame(self, t: float) -> None:
+        self.count += 1
+        self.last = t
+
+    def guess(self, label: str, prob: float) -> None:
+        self.last_guess = (label, prob)
+
+    def report(self, now: float) -> str:
+        if self.last is None or now - self.last >= 3:
+            quiet = int(now - (self.last if self.last is not None else self.started))
+            line = f"gloves: NO DATA for {quiet} s. Is the glove stream on and sent to {self.source}?"
+            self.link.send({"type": "gloves", "receiving": False, "text": "Gloves: no data from the gloves"})
+        else:
+            rate = round(self.count / max(now - self.window_start, 1e-6))
+            line = f"gloves: receiving {rate} frames/s"
+            if self.last_guess:
+                line += f" · last guess: {self.last_guess[0].upper()} ({self.last_guess[1]:.2f})"
+            self.link.send({"type": "gloves", "receiving": True, "text": f"Gloves: receiving data ({rate} frames/s)"})
+        self.count, self.window_start = 0, now
+        return line
+
+    def start(self, every_s: float = 2.0) -> None:
+        def loop():
+            while True:
+                time.sleep(every_s)
+                print(self.report(time.time()))
+
+        threading.Thread(target=loop, daemon=True).start()
+
+
 class FrameFeed:
     """Glove frames in (60 a second) -> a guess every 0.25 s -> the pipeline."""
 
-    def __init__(self, model: dict, pipe: Pipeline):
+    def __init__(self, model: dict, pipe: Pipeline, monitor: "GloveMonitor | None" = None):
         import csv_signs
 
-        self.csv_signs, self.model, self.pipe = csv_signs, model, pipe
+        self.csv_signs, self.model, self.pipe, self.monitor = csv_signs, model, pipe, monitor
         self.window = collections.deque(maxlen=csv_signs.WINDOW)
         self.n = 0
 
@@ -84,6 +124,8 @@ class FrameFeed:
         self.n += 1
         if len(self.window) == self.csv_signs.WINDOW and self.n % self.csv_signs.STEP == 0:
             label, prob = self.csv_signs.predict(self.model, list(self.window))
+            if self.monitor:
+                self.monitor.guess(label, prob)
             self.pipe.guess(label, prob, time.time())
         else:
             self.pipe.tick(time.time())
@@ -132,7 +174,9 @@ def run_udp(args, link: PhoneLink, pipe: Pipeline) -> None:
     import csv_signs
 
     model = csv_signs.load(args.model)
-    feed = FrameFeed(model, pipe)
+    monitor = GloveMonitor(link, f"UDP port {args.udp_port} on this laptop")
+    monitor.start()
+    feed = FrameFeed(model, pipe, monitor)
     sock = so.socket(so.AF_INET, so.SOCK_DGRAM)
     sock.bind(("0.0.0.0", args.udp_port))
     sock.settimeout(0.25)
@@ -143,9 +187,6 @@ def run_udp(args, link: PhoneLink, pipe: Pipeline) -> None:
             data, _ = sock.recvfrom(1 << 20)
         except so.timeout:
             pipe.tick(time.time())
-            if time.time() - last > 5:
-                print("... no glove frames for 5 s")
-                last = time.time()
             continue
         last = time.time()
         try:
@@ -161,6 +202,7 @@ def run_udp(args, link: PhoneLink, pipe: Pipeline) -> None:
                     missing = [c for c in model["columns"] if c not in have]
                     print(f"!! frame skipped: missing {len(missing)} column(s), e.g. {', '.join(missing[:3])}")
                 continue
+            monitor.frame(time.time())
             feed.push(v)
 
 
@@ -174,6 +216,9 @@ def run_replay(args, link: PhoneLink, pipe: Pipeline) -> None:
             if s not in model["replay"]:
                 sys.exit(f"'{s}' is not a trained sign. Trained: {', '.join(model['labels'])}")
     print(f"Signs: {', '.join(model['labels'])}  (accuracy on unseen repetitions: {model['accuracy']:.0%})")
+    print("Replay mode: NOT listening to the gloves. For live gloves start with --source studio (Rokoko Studio)"
+          " or --source udp (frames with the CSV's columns).")
+    link.send({"type": "gloves", "receiving": None, "text": "Gloves: replay mode (recordings, not live gloves)"})
     requested = threading.Event()
     link.on_command = lambda m: requested.set() if m.get("type") == "replay" else None
     threading.Thread(target=lambda: [requested.set() for _ in iter(sys.stdin.readline, "")], daemon=True).start()
@@ -198,18 +243,27 @@ def run_studio(args, link: PhoneLink, pipe: Pipeline) -> None:
     from signs import SignModel, frame_to_array, load_dataset
     from studio import StudioReceiver
 
-    model = SignModel(load_dataset())
-    print(f"Live signs: {model.summary()}")
+    try:
+        model = SignModel(load_dataset())
+        print(f"Live signs: {model.summary()}")
+    except ValueError:
+        model = None
+        print("!! No live recordings yet (run record.py with the gloves on: each sign ~10 times, plus 'rest').")
+        print("   Showing only whether glove data arrives; no signs will be recognised.")
+    monitor = GloveMonitor(link, f"Rokoko Studio > Livestreaming > Custom: this laptop, UDP port {args.studio_port}, JSON")
+    monitor.start()
     rx = StudioReceiver(port=args.studio_port)
     print(f"Listening for Rokoko Studio on UDP port {args.studio_port}. Sign, then rest your hands to finish a sentence.")
     window = collections.deque(maxlen=30)
     try:
         for n, joints in enumerate(rx.frames()):
+            monitor.frame(time.time())
             window.append(frame_to_array(joints))
-            if len(window) < 30 or n % 5:
+            if model is None or len(window) < 30 or n % 5:
                 pipe.tick(time.time())
                 continue
             label, _ = model.predict(list(window))
+            monitor.guess(label or "no match", 1.0 if label else 0.0)
             pipe.guess(label, 1.0 if label else 0.0, time.time())
     finally:
         rx.close()

@@ -52,6 +52,30 @@ object TextBitmap {
     return bitmap
   }
 
+  /** The demo warning: a red frame, a warning sign and the sound's name in large letters. */
+  fun renderAlert(label: String): Bitmap {
+    val bitmap = Bitmap.createBitmap(WIDTH, HEIGHT, Bitmap.Config.ARGB_8888)
+    val red = Color.rgb(255, 59, 48)
+    Canvas(bitmap).apply {
+      drawColor(Color.BLACK)
+      val frame = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        style = android.graphics.Paint.Style.STROKE; strokeWidth = 10f; color = red
+      }
+      drawRoundRect(6f, 6f, WIDTH - 6f, HEIGHT - 6f, 18f, 18f, frame)
+      val icon = TextPaint(TextPaint.ANTI_ALIAS_FLAG).apply {
+        color = red; textSize = 72f; typeface = Typeface.DEFAULT_BOLD; textAlign = android.graphics.Paint.Align.CENTER
+      }
+      drawText("⚠", WIDTH / 2f, 92f, icon)
+      val words = TextPaint(TextPaint.ANTI_ALIAS_FLAG).apply {
+        color = Color.WHITE; typeface = Typeface.DEFAULT_BOLD; textAlign = android.graphics.Paint.Align.CENTER
+        textSize = 40f
+        while (measureText(label) > WIDTH - 40 && textSize > 20f) textSize -= 2f
+      }
+      drawText(label, WIDTH / 2f, 160f, words)
+    }
+    return bitmap
+  }
+
   private fun layoutFor(text: String, paint: TextPaint, width: Int): StaticLayout =
       StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
           .setAlignment(Layout.Alignment.ALIGN_NORMAL)

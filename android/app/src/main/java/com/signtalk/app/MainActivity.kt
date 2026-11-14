@@ -169,12 +169,14 @@ private fun CaptionScreen(vm: CaptionViewModel, onScanQr: () -> Unit, onRegister
   val signStatus by vm.signStatus.collectAsStateWithLifecycle()
   var toolsOpen by remember { mutableStateOf(false) }
   val realGlasses by vm.glasses.useReal.collectAsStateWithLifecycle()
+  val alertShowing by vm.glasses.alertShowing.collectAsStateWithLifecycle()
   val gloveHost by vm.gloves.host.collectAsStateWithLifecycle()
   val gloveStatus by vm.gloves.status.collectAsStateWithLifecycle()
   val gloveConnected by vm.gloves.connected.collectAsStateWithLifecycle()
   val gloveSigns by vm.gloves.liveSigns.collectAsStateWithLifecycle()
   val gloveSentence by vm.gloves.sentence.collectAsStateWithLifecycle()
   val gloveLaptops by vm.gloves.found.collectAsStateWithLifecycle()
+  val gloveData by vm.gloves.gloveData.collectAsStateWithLifecycle()
 
   Column(
       Modifier.fillMaxSize().safeDrawingPadding().verticalScroll(rememberScrollState())
@@ -195,6 +197,16 @@ private fun CaptionScreen(vm: CaptionViewModel, onScanQr: () -> Unit, onRegister
     if (realGlasses && registration != RegistrationState.REGISTERED) {
       Button(onClick = onRegister, modifier = Modifier.fillMaxWidth().height(52.dp), shape = RoundedCornerShape(14.dp)) {
         Text("Connect to Meta AI", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+      }
+    }
+
+    // Demo warning, mirrored on the phone while it shows on the lens
+    AnimatedVisibility(alertShowing != null) {
+      Box(
+          Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(StopRed).padding(18.dp),
+          contentAlignment = Alignment.Center,
+      ) {
+        Text("⚠  ${alertShowing ?: ""}", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.Bold)
       }
     }
 
@@ -268,6 +280,18 @@ private fun CaptionScreen(vm: CaptionViewModel, onScanQr: () -> Unit, onRegister
         Text(gloveStatus, color = Muted, fontSize = 13.sp, maxLines = 1)
       }
       Text("Signs from the gloves, spoken out loud", color = Muted, fontSize = 13.sp)
+      // what the laptop says about the glove data itself
+      if (gloveConnected) {
+        gloveData?.let { (text, receiving) ->
+          Spacer(Modifier.height(8.dp))
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(9.dp).clip(CircleShape).background(
+                when (receiving) { true -> Teal; false -> StopRed; null -> Muted }))
+            Spacer(Modifier.width(8.dp))
+            Text(text, color = if (receiving == false) StopRed else Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+          }
+        }
+      }
       Spacer(Modifier.height(12.dp))
       if (gloveSentence != null || gloveSigns.isNotEmpty()) {
         Column(
@@ -363,6 +387,15 @@ private fun CaptionScreen(vm: CaptionViewModel, onScanQr: () -> Unit, onRegister
           }
           OutlinedButton(onClick = { vm.glasses.playVideo(TEST_VIDEO_URL) }, shape = RoundedCornerShape(12.dp)) {
             Text("Play test video on lens")
+          }
+          Label("Alert preview (demo: no sound detection yet)")
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("FIRE ALARM", "SIREN", "CAR HORN").forEach { warning ->
+              Button(
+                  onClick = { vm.glasses.showAlert(warning) }, shape = RoundedCornerShape(12.dp),
+                  colors = ButtonDefaults.buttonColors(containerColor = StopRed, contentColor = Color.White),
+              ) { Text(warning.lowercase().replaceFirstChar { it.uppercase() }, fontSize = 13.sp) }
+            }
           }
           if (realGlasses) {
             Text("Meta AI: $registration", color = Muted, fontSize = 13.sp)

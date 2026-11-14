@@ -57,6 +57,10 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
 
   /** FinSL sign names for the last sentence, shown above the caption for a few seconds. */
   private val signsLine = MutableStateFlow<String?>(null)
+
+  /** Demo-only warning (no sound detection): drawn over everything for a few seconds. */
+  private val alert = MutableStateFlow<String?>(null)
+  val alertShowing: StateFlow<String?> = alert.asStateFlow()
   private var session: DeviceSession? = null
 
   private val _textSize = MutableStateFlow(TextSize.EXTRA_LARGE)
@@ -84,11 +88,12 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
       combine(display, caption, _textSize, videoPlaying, signsLine) { d, text, size, playing, signs ->
             Frame(d, text, size, signs, playing)
           }
+          .combine(alert) { f, a -> f.copy(alert = a) }
           .collect { f ->
-            // while a video plays it owns the (full-screen) lens
-            val d = f.display?.takeUnless { f.playing }
+            // while a video plays it owns the (full-screen) lens; a warning beats even a video
+            val d = f.display?.takeUnless { f.playing && f.alert == null }
             if (d != null) {
-              draw(d, f.text, f.size, f.signs)
+              draw(d, f.text, f.size, f.signs, f.alert)
               // keep Bluetooth traffic reasonable while words stream in; pictures are bigger
               delay(if (f.size == TextSize.EXTRA_LARGE) 250 else 60)
             }
@@ -103,8 +108,10 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
 
   /** Bumped on every switch, so waits and retries from the previous kind of glasses stop. */
   @Volatile private var generation = 0
+  private var reconnects = 0
   private var connectJob: Job? = null
   private var mockOn = false
+  private var mockId: com.meta.wearable.dat.core.types.DeviceIdentifier? = null
 
   /** Connects to whichever kind of glasses was last chosen. */
   fun connectChosen() = if (_useReal.value) connectRealGlasses() else connectMockGlasses()
@@ -122,6 +129,7 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
       runCatching { kit.stopTestServer() }
       runCatching { kit.disable() }
       mockOn = false
+      mockId = null
       _previewHint.value = null
     }
     scope.launch(errors) {
@@ -134,11 +142,17 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
   fun connectMockGlasses() {
     if (session != null) return
     mockOn = true
+    mockId?.let { id ->
+      // reconnect: the simulated pair already exists, just open a new session to it
+      startSession(SpecificDeviceSelector(id))
+      return
+    }
     val kit = MockDeviceKit.getInstance(context)
     kit.enable()
     kit.pairGlasses(GlassesModel.META_RAYBAN_DISPLAY)
         .fold(
             onSuccess = { glasses ->
+              mockId = glasses.deviceIdentifier
               glasses.powerOn()
               glasses.don()
               kit.startTestServer(PREVIEW_PORT)
@@ -213,6 +227,7 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
 
   /** Close the display, then the session (the order Meta's guide asks for). */
   fun disconnect() {
+    generation++ // our own stop: the STOPPED handler must not reconnect
     display.value = null
     session?.let { s ->
       s.removeDisplay().onFailure { e, _ -> Log.w(TAG, "removeDisplay failed: ${e.description}") }
@@ -244,7 +259,18 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
                     DeviceSessionState.STOPPED -> {
                       if (session === s) session = null
                       display.value = null
-                      _status.value = "Glasses: session stopped"
+                      if (gen == generation) {
+                        // stopped by the glasses or the toolkit, not by us: connect again by ourselves
+                        reconnects++
+                        _status.value = "Glasses: session stopped, reconnecting ($reconnects)…"
+                        Log.w(TAG, "Session stopped unexpectedly; reconnecting (#$reconnects)")
+                        scope.launch(errors) {
+                          delay(2_000)
+                          if (session == null && gen == generation) connectChosen()
+                        }
+                      } else {
+                        _status.value = "Glasses: session stopped"
+                      }
                     }
                     else -> {}
                   }
@@ -266,6 +292,7 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
 
   private fun attachDisplay(s: DeviceSession) {
     _status.value = "Glasses: attaching display…"
+    reconnects = 0
     s.addDisplay()
         .fold(
             onSuccess = { d ->
@@ -292,8 +319,17 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
 
   private data class Frame(
       val display: Display?, val text: String, val size: TextSize, val signs: String?,
-      val playing: Boolean,
+      val playing: Boolean, val alert: String? = null,
   )
+
+  /** Demo: show a big warning (e.g. "FIRE ALARM") on the lens for [ms], then the captions return. */
+  fun showAlert(label: String, ms: Long = 5_000) {
+    alert.value = label
+    scope.launch {
+      delay(ms)
+      if (alert.value == label) alert.value = null
+    }
+  }
 
   /** Show the sign names for a few seconds above the caption. */
   fun showSigns(signs: List<String>) {
@@ -306,10 +342,16 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
     }
   }
 
-  private suspend fun draw(d: Display, text: String, size: TextSize, signs: String?) = sendLock.withLock {
-    if (videoPlaying.value) return@withLock // a video started while we waited
+  private suspend fun draw(d: Display, text: String, size: TextSize, signs: String?, warning: String? = null) = sendLock.withLock {
+    if (videoPlaying.value && warning == null) return@withLock // a video started while we waited
     val result =
         when {
+          warning != null -> {
+            val bitmap = TextBitmap.renderAlert(warning)
+            d.sendContent {
+              flexBox(direction = Direction.COLUMN) { image(bitmap = bitmap, sizePreset = ImageSize.FILL) }
+            }
+          }
           // Drawn as a picture: bigger than any built-in text style.
           size == TextSize.EXTRA_LARGE -> {
             val bitmap = TextBitmap.render(lastWords(text, 120).ifBlank { "Listening…" }, header = signs)

@@ -55,6 +55,10 @@ class GloveLink(context: Context, private val scope: CoroutineScope) {
   private val _liveSigns = MutableStateFlow<List<String>>(emptyList())
   val liveSigns: StateFlow<List<String>> = _liveSigns.asStateFlow()
 
+  /** What the laptop says about the glove data: text, and true = arriving, false = none, null = not listening. */
+  private val _gloveData = MutableStateFlow<Pair<String, Boolean?>?>(null)
+  val gloveData: StateFlow<Pair<String, Boolean?>?> = _gloveData.asStateFlow()
+
   private val _sentence = MutableStateFlow<GloveSentence?>(null)
   val sentence: StateFlow<GloveSentence?> = _sentence.asStateFlow()
 
@@ -214,6 +218,7 @@ class GloveLink(context: Context, private val scope: CoroutineScope) {
     runCatching { socket?.close() }
     socket = null
     _connected.value = false
+    _gloveData.value = null
     _status.value = "Not connected"
   }
 
@@ -233,6 +238,9 @@ class GloveLink(context: Context, private val scope: CoroutineScope) {
     val m = runCatching { JSONObject(line) }.getOrNull() ?: return
     when (m.optString("type")) {
       "status" -> _status.value = m.optString("text")
+      "gloves" ->
+          _gloveData.value =
+              m.optString("text") to (if (m.isNull("receiving")) null else m.optBoolean("receiving"))
       "sign" -> {
         if (sentenceDone) {
           _liveSigns.value = emptyList()

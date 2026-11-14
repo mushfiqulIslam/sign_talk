@@ -16,6 +16,7 @@ class PhoneLink:
         self._lock = threading.Lock()
         self._server: socket.socket | None = None
         self._running = False
+        self._last_gloves: bytes | None = None  # glove status, repeated to phones that connect later
 
     def start(self) -> None:
         self._server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -37,6 +38,8 @@ class PhoneLink:
 
     def send(self, message: dict) -> None:
         line = (json.dumps(message, ensure_ascii=False) + "\n").encode()
+        if message.get("type") == "gloves":
+            self._last_gloves = line
         with self._lock:
             for p in list(self.phones):
                 try:
@@ -54,6 +57,8 @@ class PhoneLink:
             conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
             try:
                 conn.sendall(b'{"type": "hello"}\n')
+                if self._last_gloves:
+                    conn.sendall(self._last_gloves)
             except OSError:
                 conn.close()
                 continue
