@@ -1,5 +1,13 @@
-# Python 3.10 or newer. Install with:
-#   Windows:      py -m venv .venv  then  .venv\Scripts\pip install -r requirements.txt
+# Python 3.10 or newer. Same packages as pyproject.toml.
+# Recommended (gives the `signtalk-gloves` command), from the sign_talk folder:
+#   Windows:      py -m venv gloves\.venv    then  gloves\.venv\Scripts\pip install -e gloves
+#   Mac / Linux:  python3 -m venv gloves/.venv  then  gloves/.venv/bin/pip install -e gloves
+# Or with this file only (then run: python serve.py run ...), from the gloves folder:
+#   Windows:      py -m venv .venv    then  .venv\Scripts\pip install -r requirements.txt
 #   Mac / Linux:  python3 -m venv .venv  then  .venv/bin/pip install -r requirements.txt
-numpy>=2.0        # finger maths and the sign recogniser
+numpy>=2.0        # finger maths and the sign recognisers
 lz4>=4.0          # only needed if Rokoko Studio sends compressed packets
+pandas            # reading the glove CSV recordings
+scikit-learn      # the trained glove sign model (random forest)
+joblib            # loading and saving that model
+qrcode            # the QR code page that connects the phone
