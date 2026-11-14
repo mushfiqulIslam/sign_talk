@@ -79,3 +79,18 @@ def test_beacon_announces_name_and_port():
     finally:
         beacon.stop()
         rx.close()
+
+
+def test_addresses_skip_loopback_and_prefer_real_lan():
+    from phone_link import rank_addresses
+
+    got = rank_addresses(["127.0.0.1", "172.25.96.1", "169.254.3.4", "10.0.34.57", "192.168.1.20"], route_guess="172.25.96.1")
+    assert got[:2] == ["10.0.34.57", "192.168.1.20"]  # real Wi-Fi/LAN first
+    assert "127.0.0.1" not in got and "169.254.3.4" not in got
+    assert got[-1] == "172.25.96.1"  # 172.16-31: usually WSL / Hyper-V / Docker, kept last
+
+
+def test_route_guess_wins_among_equals():
+    from phone_link import rank_addresses
+
+    assert rank_addresses(["192.168.1.20", "10.0.34.57"], route_guess="10.0.34.57")[0] == "10.0.34.57"

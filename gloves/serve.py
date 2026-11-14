@@ -232,6 +232,7 @@ def main() -> None:
     r.add_argument("--port", type=int, default=8765, help="the phone connects to this port")
     r.add_argument("--studio-port", type=int, default=14043)
     r.add_argument("--name", default=socket.gethostname(), help="name the phone shows for this laptop")
+    r.add_argument("--host", help="the laptop address to put in the QR code (if the guess is wrong; see ipconfig)")
     r.add_argument("--no-qr", action="store_true", help="don't open the QR page in the browser")
     r.add_argument("--no-gemini", action="store_true", help="plain words instead of a Gemini sentence")
     e = sub.add_parser("eval", help="score the model on random phrases of held-out signs")
@@ -283,13 +284,19 @@ def main() -> None:
     beacon = Beacon(name=args.name, port=link.port)
     beacon.start()
     print(f"Announcing '{args.name}' on the Wi-Fi: the app finds this laptop by itself.")
-    addresses = laptop_addresses()
+    addresses = [args.host] if args.host else laptop_addresses()
+    if not addresses:
+        print("!! Couldn't find this laptop's Wi-Fi address. Is Wi-Fi on? Start again with --host <IPv4 from ipconfig>.")
+    elif len(addresses) > 1:
+        print(f"Addresses found: {', '.join(addresses)}. Using {addresses[0]} for the QR code "
+              "(wrong one? start again with --host <Wi-Fi IPv4 from ipconfig>).")
     if addresses and not args.no_qr:
         import qr_page
 
         if qr_page.show(addresses[0], link.port, args.name):
             print("Opened a QR code in the browser: Sign Talk > Gloves > Scan QR.")
-    print("Or type the address in the Gloves card: " + " or ".join(f"{ip}" for ip in laptop_addresses()) + f"  (port {link.port})")
+    if addresses:
+        print(f"Or type the address in the Gloves card: {addresses[0]}  (port {link.port})")
     pipe = Pipeline(link, use_model=not args.no_gemini)
     try:
         {"replay": run_replay, "file": run_file, "udp": run_udp, "studio": run_studio}[args.source](args, link, pipe)

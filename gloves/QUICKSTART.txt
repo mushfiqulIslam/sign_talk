@@ -18,5 +18,10 @@ Laptop and phone on the SAME Wi-Fi (or the laptop on the phone's hotspot).
 4. Tap "Play glove demo". The phone shows the signs, then the sentence,
    and reads it out loud. Turn the phone's volume up.
 
+Wrong address under the QR code (127.0.0.1, or 172.x.x.x from WSL / Hyper-V / VPN)?
+   Find the Wi-Fi "IPv4 Address" with  ipconfig  and start with it, e.g. in Command Prompt:
+   start.bat --host 10.0.34.57
+   (or just type that address in the phone's Gloves card and tap Connect).
+
 Stop: close the window (or Ctrl+C).
 Trouble connecting: try the phone's hotspot instead of the venue Wi-Fi.

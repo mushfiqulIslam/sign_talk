@@ -79,17 +79,36 @@ class PhoneLink:
         print("phone disconnected")
 
 
+def rank_addresses(addresses: list[str], route_guess: str | None = None) -> list[str]:
+    """Usable addresses for the phone, best first: real Wi-Fi/LAN (10.x, 192.168.x, others), then
+    172.16-31.x (usually a virtual adapter: WSL, Hyper-V, Docker). Never loopback or link-local."""
+    def usable(ip: str) -> bool:
+        return not (ip.startswith(("127.", "169.254.", "0.")) or ip == "")
+
+    def virtual(ip: str) -> bool:
+        parts = ip.split(".")
+        return parts[0] == "172" and len(parts) > 1 and parts[1].isdigit() and 16 <= int(parts[1]) <= 31
+
+    unique = list(dict.fromkeys(ip for ip in addresses if usable(ip)))
+    return sorted(unique, key=lambda ip: (virtual(ip), ip != route_guess, unique.index(ip)))
+
+
 def laptop_addresses() -> list[str]:
-    """The laptop's Wi-Fi address(es) to type into the phone."""
-    found = set()
+    """The laptop's address(es) to give the phone, best first."""
+    found, route_guess = [], None
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))  # no packet is sent; picks the outgoing interface
-        found.add(s.getsockname()[0])
+        s.connect(("8.8.8.8", 80))  # no packet is sent; picks the interface used for the internet
+        route_guess = s.getsockname()[0]
+        found.append(route_guess)
         s.close()
     except OSError:
         pass
-    return sorted(found)
+    try:
+        found += [info[4][0] for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)]
+    except OSError:
+        pass
+    return rank_addresses(found, route_guess)
 
 
 DISCOVERY_PORT = 8767  # the phone listens here for laptops announcing themselves
