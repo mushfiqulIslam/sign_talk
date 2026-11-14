@@ -94,63 +94,6 @@ flowchart LR
 
 Check first: does video play in the mock lens in Chrome?
 
-## Full system
-
-![Full system: glasses, Android app, laptop backend and Gemini](images/architecture-full.png)
-
-<details>
-<summary>Mermaid source</summary>
-
-```mermaid
-flowchart LR
-  subgraph GlassesIn["Glasses"]
-    mic["Microphone<br/><small>speech, sounds</small>"]
-  end
-  subgraph AppIn["Android app: listen"]
-    listener["Speech listener<br/><small>Meta speech module</small>"]
-    trip["Trip settings<br/><small>train, destination</small>"]
-    audio["Audio capture<br/><small>short sound chunks</small>"]
-  end
-  subgraph Backend["Laptop backend (Python, FastAPI)"]
-    relay["Caption relay<br/><small>text straight on</small>"]
-    filter["Announcement filter<br/><small>is it my trip?</small>"]
-    alerts["Sound alerts<br/><small>YAMNet, runs locally</small>"]
-    hub["Message hub<br/><small>WebSocket</small>"]
-  end
-  gemini["Gemini API<br/><small>cloud</small>"]
-  subgraph AppOut["Android app: show"]
-    renderer["Lens renderer<br/><small>Meta display module</small>"]
-  end
-  subgraph GlassesOut["Glasses"]
-    lens["Lens display<br/><small>600 × 600</small>"]
-  end
-
-  mic --> listener
-  mic --> audio
-  listener --> relay
-  listener --> filter
-  trip --> filter
-  audio --> alerts
-  filter <--> gemini
-  relay --> hub
-  filter --> hub
-  alerts --> hub
-  hub --> renderer --> lens
-```
-
-</details>
-
-| Part | What it does |
-|---|---|
-| Speech listener | Turns speech from the glasses' microphone into text. Fallback: the phone's microphone. |
-| Trip settings | The wearer types their train and destination once. |
-| Audio capture | Sends short sound clips to the backend for the danger alerts. Audio is never stored. |
-| Caption relay | Sends speech text straight back to the lens as captions. |
-| Announcement filter | Asks Gemini whether an announcement concerns the wearer's trip, and returns a short summary and its urgency. |
-| Sound alerts | YAMNet, a pretrained sound classifier, recognises fire alarms, smoke detectors, sirens and car horns. |
-| Message hub | Sends captions, announcement cards and alerts to the app as they happen. |
-| Lens renderer | Draws them in the lens: alerts at the top, announcement cards in the middle, captions at the bottom. |
-
 ## Gloves: signs to text and voice (separate plan)
 
 The glasses help the deaf person understand others. The gloves work the other way round: the deaf person signs, and a hearing person who does not know sign language reads or hears it, in Finnish and English. A separate team member works on this; it is not connected to the glasses app.
