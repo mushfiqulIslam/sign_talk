@@ -18,6 +18,8 @@ class CaptionViewModel(app: Application) : AndroidViewModel(app) {
   val glasses = GlassesLink(app, viewModelScope)
   val captioner = Captioner(app)
   private var started = false
+  val gloves = GloveLink(app, viewModelScope)
+  private var micPausedForSpeech = false
   private val signClient = SignClient(BuildConfig.SIGN_API_URL, BuildConfig.SIGN_API_KEY)
 
   private val _signsOn = MutableStateFlow(false)
@@ -47,6 +49,18 @@ class CaptionViewModel(app: Application) : AndroidViewModel(app) {
 
   init {
     viewModelScope.launch { captioner.caption.collect { glasses.show(it) } }
+    // Speak glove sentences in the language picked on screen; pause the caption mic meanwhile
+    // so the app doesn't caption its own voice.
+    gloves.finnish = { captioner.language.value == Language.FINNISH }
+    gloves.onSpeaking = { speaking ->
+      if (speaking && captioner.listening.value) {
+        micPausedForSpeech = true
+        captioner.stop()
+      } else if (!speaking && micPausedForSpeech) {
+        micPausedForSpeech = false
+        captioner.start()
+      }
+    }
     // Each finished sentence -> sign API -> sign names (and clips) on the lens. While one sentence's
     // clips play, only the newest waiting sentence is kept, so the lens never falls far behind.
     viewModelScope.launch {
@@ -77,21 +91,22 @@ class CaptionViewModel(app: Application) : AndroidViewModel(app) {
   }
 
   /**
-   * Call once the Bluetooth and microphone permissions are granted.
-   * [useRealGlasses] false = Meta's simulated glasses, lens viewed in Chrome.
+   * Call once the Bluetooth and microphone permissions are granted. Real or simulated glasses:
+   * whichever was last picked in Demo tools.
    */
-  fun startAll(useRealGlasses: Boolean) {
+  fun startAll() {
     if (started) return
     started = true
     Wearables.initialize(getApplication())
         .onFailure { e, _ -> Log.e("SignTalk", "Wearables init failed: ${e.description}") }
     viewModelScope.launch { Wearables.registrationState.collect { _registration.value = it } }
-    if (useRealGlasses) glasses.connectRealGlasses() else glasses.connectMockGlasses()
+    glasses.connectChosen()
     captioner.start()
   }
 
   override fun onCleared() {
     captioner.stop()
+    gloves.close()
     glasses.disconnect()
     super.onCleared()
   }

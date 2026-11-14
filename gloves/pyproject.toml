@@ -1,0 +1,20 @@
+[project]
+name = "signtalk-gloves"
+version = "0.2.0"
+description = "Sign Talk glove backend: data-glove signs -> sentence -> phone over Wi-Fi"
+license = "MIT"
+requires-python = ">=3.10"
+dependencies = ["numpy>=2.0", "lz4>=4.0", "pandas", "scikit-learn", "joblib"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[project.scripts]
+signtalk-gloves = "serve:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["serve", "phone_link", "decoder", "sentence", "csv_signs", "signs", "studio"]

@@ -25,15 +25,18 @@ class SignClient(private val baseUrl: String, private val key: String) {
   val configured: Boolean
     get() = baseUrl.isNotBlank() && key.isNotBlank()
 
+  /** One retry: venue Wi-Fi and the tunnel sometimes stall for a few seconds. */
   suspend fun signs(text: String, language: Language): SignResult? =
+      if (!configured) null else attempt(text, language) ?: attempt(text, language)
+
+  private suspend fun attempt(text: String, language: Language): SignResult? =
       withContext(Dispatchers.IO) {
-        if (!configured) return@withContext null
         val lang = if (language == Language.FINNISH) "fi" else "en"
         try {
           val conn = (URL("$baseUrl/signs").openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
-            connectTimeout = 3_000
-            readTimeout = 15_000 // first time a sentence's video is built takes a few seconds
+            connectTimeout = 10_000
+            readTimeout = 25_000 // a new sentence's video takes a few seconds to build
             doOutput = true
             setRequestProperty("Content-Type", "application/json")
             setRequestProperty("x-api-key", key)

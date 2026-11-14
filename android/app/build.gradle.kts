@@ -26,6 +26,7 @@ android {
   defaultConfig {
     buildConfigField("String", "SIGN_API_URL", "\"${signEnv["SIGN_API_URL"] ?: ""}\"")
     buildConfigField("String", "SIGN_API_KEY", "\"${signEnv["SIGN_API_KEY"] ?: ""}\"")
+    buildConfigField("String", "GLOVE_HOST", "\"${signEnv["GLOVE_HOST"] ?: ""}\"")
     applicationId = "com.signtalk.app"
     minSdk = 31
     targetSdk = 36

@@ -1,4 +1,34 @@
-# Gloves: Rokoko Smartgloves II -> signs as text
+# Gloves: Rokoko Smartgloves II -> signs as text -> spoken by the phone
+
+## Glove backend (`signtalk-gloves`): signs -> sentence -> phone over Wi-Fi
+
+One command on the laptop recognises signs, turns them into a Finnish/English sentence (Gemini,
+`GEMMA_API_KEY` in `sign_talk/.env`; plain words without it) and sends it to the Sign Talk app,
+which shows it and speaks it out loud. Laptop and phone must be on the same Wi-Fi (or the phone's hotspot).
+
+Install once (Python 3.10+), from the `sign_talk` folder:
+```
+Windows:      py -m venv gloves\.venv   then   gloves\.venv\Scripts\pip install -e gloves
+Mac / Linux:  python3 -m venv gloves/.venv   then   gloves/.venv/bin/pip install -e gloves
+```
+Then (`gloves\.venv\Scripts\signtalk-gloves` on Windows, `gloves/.venv/bin/signtalk-gloves` elsewhere):
+```
+signtalk-gloves train --data <folder with one CSV per sign>    once; prints accuracy on unseen repetitions
+signtalk-gloves run                                            replays recorded signs (no gloves needed)
+signtalk-gloves run --source studio                            live gloves from Rokoko Studio (record signs first, below)
+```
+It prints the laptop's address. In the app: **Gloves** card -> type that address -> **Connect** ->
+**Play glove demo** (replay mode) or sign with the gloves (studio mode).
+- Windows asks to let Python through the firewall the first time: tick **Private and Public**.
+- Find the address yourself with `ipconfig` (Windows, "IPv4 Address" under Wi-Fi) or `ip addr` / `ifconfig`.
+- Anyone on the same Wi-Fi can connect to port 8765 and read the sentences: use a trusted network.
+- The CSV recordings and the trained model (`~/.signtalk/gloves-model.joblib`) are not in the repo.
+- Tests: `gloves/.venv/bin/pip install -e "gloves[dev]"` then `gloves/.venv/bin/pytest gloves`.
+
+The live (`--source studio`) recogniser uses the recordings made with `record.py` below, in Studio's
+live format; the CSV model can't read the live stream. Record each sign ~10 times plus `rest`.
+
+---
 
 Rokoko Studio (Windows or Apple-silicon Mac) streams the glove data to these scripts
 on the same laptop. Python 3.10+ and two packages (`numpy`, `lz4`).

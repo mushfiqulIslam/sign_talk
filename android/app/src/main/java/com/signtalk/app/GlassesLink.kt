@@ -24,6 +24,7 @@ import com.meta.wearable.dat.mockdevice.MockDeviceKit
 import com.meta.wearable.dat.mockdevice.api.GlassesModel
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -95,9 +96,44 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
     }
   }
 
+  private val prefs = context.getSharedPreferences("glasses", Context.MODE_PRIVATE)
+  private val _useReal = MutableStateFlow(prefs.getBoolean("real", false))
+  /** true = real Ray-Ban Display glasses, false = Meta's simulated glasses (lens in Chrome). */
+  val useReal: StateFlow<Boolean> = _useReal.asStateFlow()
+
+  /** Bumped on every switch, so waits and retries from the previous kind of glasses stop. */
+  @Volatile private var generation = 0
+  private var connectJob: Job? = null
+  private var mockOn = false
+
+  /** Connects to whichever kind of glasses was last chosen. */
+  fun connectChosen() = if (_useReal.value) connectRealGlasses() else connectMockGlasses()
+
+  /** Switch between real and simulated glasses on the fly (Demo tools). */
+  fun switchTo(real: Boolean) {
+    if (real == _useReal.value && session != null) return
+    _useReal.value = real
+    prefs.edit().putBoolean("real", real).apply()
+    generation++
+    connectJob?.cancel()
+    disconnect()
+    if (real && mockOn) {
+      val kit = MockDeviceKit.getInstance(context)
+      runCatching { kit.stopTestServer() }
+      runCatching { kit.disable() }
+      mockOn = false
+      _previewHint.value = null
+    }
+    scope.launch(errors) {
+      delay(800) // let the old session close before opening a new one
+      connectChosen()
+    }
+  }
+
   /** Version 1: Meta's simulated Ray-Ban Display glasses, lens viewable in Chrome. */
   fun connectMockGlasses() {
     if (session != null) return
+    mockOn = true
     val kit = MockDeviceKit.getInstance(context)
     kit.enable()
     kit.pairGlasses(GlassesModel.META_RAYBAN_DISPLAY)
@@ -115,10 +151,11 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
                   )
               // The guide says: only open a session once registered. The mock kit
               // registers us itself, but possibly a moment after enable().
-              scope.launch(errors) {
+              val gen = generation
+              connectJob = scope.launch(errors) {
                 _status.value = "Glasses: waiting for registration…"
                 Wearables.registrationState.first { it == RegistrationState.REGISTERED }
-                startSession(SpecificDeviceSelector(glasses.deviceIdentifier))
+                if (gen == generation) startSession(SpecificDeviceSelector(glasses.deviceIdentifier))
               }
             },
             onFailure = { e, _ -> _status.value = "Mock glasses failed: ${e.description}" },
@@ -133,12 +170,13 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
   fun connectRealGlasses() {
     if (session != null) return
     watchDevices()
-    scope.launch(errors) {
+    val gen = generation
+    connectJob = scope.launch(errors) {
       if (Wearables.registrationState.value != RegistrationState.REGISTERED) {
         _status.value = "Glasses: tap \"Connect to Meta AI\" and approve in the Meta AI app"
       }
       Wearables.registrationState.first { it == RegistrationState.REGISTERED }
-      startSession(AutoDeviceSelector(filter = { it.isDisplayCapable() }))
+      if (gen == generation) startSession(AutoDeviceSelector(filter = { it.isDisplayCapable() }))
     }
   }
 
@@ -189,6 +227,7 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
   }
 
   private fun startSession(selector: DeviceSelector) {
+    val gen = generation
     _status.value = "Glasses: starting session…"
     Wearables.createSession(selector)
         .fold(
@@ -219,7 +258,7 @@ class GlassesLink(private val context: Context, private val scope: CoroutineScop
               // Right after registration the toolkit may not have listed the glasses yet.
               scope.launch(errors) {
                 delay(2000)
-                if (session == null) startSession(selector)
+                if (session == null && gen == generation) startSession(selector)
               }
             },
         )
