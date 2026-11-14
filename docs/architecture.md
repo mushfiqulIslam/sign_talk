@@ -150,8 +150,6 @@ Limits:
 - **Where the hand is:** the gloves measure finger bend and hand rotation, not where the hand is relative to the body. A sign like STUDY, which moves from the waist to the head, may still be told apart by how the hand turns. Test it early, and ask Rokoko whether the gloves can report hand position.
 - **Sign length:** recordings are currently about half a second (30 frames). Long movements need about 1–1.5 seconds, so `record.py` and `recognise.py` must use a longer window.
 
-Check point: the gloves should be streaming by Saturday 14:00. If they are not, ask Rokoko for help straight away; as a last resort, replay glove data recorded earlier in the day (a small change to `gloves/fake_studio.py`, which today sends made-up hand poses).
-
 ## Privacy and safety
 
 - Audio is processed as it arrives and is never stored.
