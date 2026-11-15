@@ -4,5 +4,4 @@ first_packet.json
 *.egg-info/
 .pytest_cache/
 build/
-sign_dataset/
 *.csv
