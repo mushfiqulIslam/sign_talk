@@ -9,7 +9,7 @@ import time
 from signs import DATASET_DIR, frame_to_array, save_sample
 from studio import DEFAULT_PORT, StudioReceiver
 
-FRAMES_PER_SAMPLE = 120  # about half a second at 60 fps
+FRAMES_PER_SAMPLE = 80  # 30 frames is about half a second at 60 fps
 
 
 def record_one(frames_iter, n=FRAMES_PER_SAMPLE):
