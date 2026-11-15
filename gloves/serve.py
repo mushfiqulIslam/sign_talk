@@ -33,6 +33,8 @@ def default_model() -> Path:
 # Each tap of "Play glove demo" on the phone plays the next phrase.
 DEFAULT_DEMO = "me,study,Aalto,university/nice,meet/good,day"
 REPLAY_FRAMES = 150  # 2.5 s of each sign
+STUDIO_WINDOW_SECONDS = 2.0
+STUDIO_PREDICT_EVERY = 5  # frames
 
 
 class Pipeline:
@@ -95,7 +97,7 @@ class GloveMonitor:
             rate = round(self.count / max(now - self.window_start, 1e-6))
             line = f"gloves: receiving {rate} frames/s"
             if self.last_guess:
-                line += f" · last guess: {self.last_guess[0].upper()} ({self.last_guess[1]:.2f})"
+                line += f" | last match: {self.last_guess[0].upper()} (distance {self.last_guess[1]:.2f})"
             self.link.send({"type": "gloves", "receiving": True, "text": f"Gloves: receiving data ({rate} frames/s)"})
         self.count, self.window_start = 0, now
         return line
@@ -253,18 +255,30 @@ def run_studio(args, link: PhoneLink, pipe: Pipeline) -> None:
     monitor = GloveMonitor(link, f"Rokoko Studio > Livestreaming > Custom: this laptop, UDP port {args.studio_port}, JSON")
     monitor.start()
     rx = StudioReceiver(port=args.studio_port)
-    print(f"Listening for Rokoko Studio on UDP port {args.studio_port}. Sign, then rest your hands to finish a sentence.")
-    window = collections.deque(maxlen=30)
+    print(f"Listening for Rokoko Studio on UDP port {args.studio_port}. Recognition uses a rolling {STUDIO_WINDOW_SECONDS:.0f}-second window.")
+    print("Pause signing for 2 seconds to send the recognized sign sequence to Gemini and the phone.")
+    window = collections.deque()
+    stream_started = None
+    n = 0
     try:
-        for n, joints in enumerate(rx.frames()):
-            monitor.frame(time.time())
-            window.append(frame_to_array(joints))
-            if model is None or len(window) < 30 or n % 5:
-                pipe.tick(time.time())
+        for joints in rx.frames():
+            now = time.time()
+            if stream_started is None:
+                stream_started = now
+            monitor.frame(now)
+            window.append((now, frame_to_array(joints)))
+            while window and now - window[0][0] > STUDIO_WINDOW_SECONDS:
+                window.popleft()
+            n += 1
+            ready = now - stream_started >= STUDIO_WINDOW_SECONDS
+            if model is None or not ready or n % STUDIO_PREDICT_EVERY:
+                pipe.tick(now)
                 continue
-            label, _ = model.predict(list(window))
-            monitor.guess(label or "no match", 1.0 if label else 0.0)
-            pipe.guess(label, 1.0 if label else 0.0, time.time())
+            label, distance = model.predict([frame for _, frame in window])
+            monitor.guess(label or "no match", distance)
+            # SignModel returns a distance, not a probability. The decoder only needs
+            # an accepted/rejected signal; do not present the distance as confidence.
+            pipe.guess(label, 1.0 if label else 0.0, now)
     finally:
         rx.close()
 

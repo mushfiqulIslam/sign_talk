@@ -102,13 +102,18 @@ class SignModel:
         for label in set(self.labels):
             # How far each recording is from its nearest sibling: a live sign much
             # further than that from every recording is treated as "no match".
+            # Compute distances in one matrix operation for quick startup on larger datasets.
             idx = [i for i, l in enumerate(self.labels) if l == label]
-            dists = []
-            for i in idx:
-                others = [j for j in idx if j != i]
-                if others:
-                    dists.append(min(np.linalg.norm(self.x[i] - self.x[j]) for j in others))
-            self.threshold[label] = 2.0 * max(dists) if dists else np.inf
+            if len(idx) > 1:
+                x = self.x[idx]
+                norm2 = np.einsum("ij,ij->i", x, x)
+                d2 = norm2[:, None] + norm2[None, :] - 2.0 * (x @ x.T)
+                np.maximum(d2, 0.0, out=d2)
+                np.fill_diagonal(d2, np.inf)
+                nearest = np.sqrt(d2.min(axis=1))
+                self.threshold[label] = 2.0 * float(nearest.max())
+            else:
+                self.threshold[label] = np.inf
 
     def predict(self, raw_frames):
         v = (sequence_vector(raw_frames) - self.mean) / self.std

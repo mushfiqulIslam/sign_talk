@@ -9,7 +9,7 @@ import time
 from signs import DATASET_DIR, frame_to_array, save_sample
 from studio import DEFAULT_PORT, StudioReceiver
 
-FRAMES_PER_SAMPLE = 30  # about half a second at 60 fps
+FRAMES_PER_SAMPLE = 120  # about half a second at 60 fps
 
 
 def record_one(frames_iter, n=FRAMES_PER_SAMPLE):
@@ -32,7 +32,7 @@ def main():
             input("Press Enter when ready, then sign when told to.")
             for i in range(count):
                 print(f"[{i + 1}/{count}] get ready...")
-                time.sleep(1.0)
+                time.sleep(2.0)
                 # Throw away frames that queued up while we waited.
                 rx.sock.setblocking(False)
                 try:
@@ -44,7 +44,7 @@ def main():
                 print("  SIGN NOW")
                 path = save_sample(sign, record_one(frames))
                 print(f"  saved {path}")
-                time.sleep(0.5)
+                time.sleep(2.0)
             print(f"Done with '{sign}'.\n")
     except KeyboardInterrupt:
         print("\nStopped.")
