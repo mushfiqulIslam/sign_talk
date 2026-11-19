@@ -21,4 +21,4 @@ The wearer keeps looking at the people around them while the Meta Ray-Ban Displa
 
 ## Data and licences
 
-The code is MIT. The glove sign model (`gloves/gloves-model.joblib`) is trained on the team's own recordings and shared under MIT; the raw recordings are not included. The FinSL corpus, the Signbank videos (CC BY-NC-SA) and the fine-tuned FinSL model are not in this repository; see `training/README.md`.
+The code is MIT. The glove sign model (`gloves/gloves-model.joblib`) is trained on the team's own glove recordings and shared under MIT. Recordings made by the team are included in `gloves/sign_dataset/`, also under MIT: 119 short clips of 10 signs (9 Finnish Sign Language signs and a resting hand). Each clip holds only hand and finger joint positions and rotations from the Rokoko gloves, with no audio, video or names. The FinSL corpus, the Signbank videos (CC BY-NC-SA) and the fine-tuned FinSL model are not in this repository; see `training/README.md`.
